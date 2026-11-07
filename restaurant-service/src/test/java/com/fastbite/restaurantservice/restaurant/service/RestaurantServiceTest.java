@@ -2,6 +2,7 @@ package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.RestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
@@ -121,6 +122,48 @@ class RestaurantServiceTest {
     }
 
     @Test
+    void updatesRestaurantWhenItExists() {
+        UUID restaurantId = UUID.randomUUID();
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest(
+                null,
+                null,
+                null,
+                "+30 210 987 6543",
+                "Piraeus",
+                null,
+                null
+        );
+        Restaurant restaurant = Restaurant.builder()
+                .id(restaurantId)
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .build();
+        RestaurantResponse expectedResponse = new RestaurantResponse(
+                restaurantId,
+                "FastBite Athens",
+                "Athens, Greece",
+                true,
+                null,
+                "+30 210 987 6543",
+                "Piraeus",
+                null,
+                null,
+                null
+        );
+
+        when(restaurantRepository.findById(restaurantId))
+                .thenReturn(Optional.of(restaurant));
+        when(restaurantMapper.toResponse(restaurant)).thenReturn(expectedResponse);
+
+        RestaurantResponse result = restaurantService.updateRestaurant(restaurantId, request);
+
+        assertSame(expectedResponse, result);
+        verify(restaurantRepository).findById(restaurantId);
+        verify(restaurantMapper).updateEntity(request, restaurant);
+        verify(restaurantMapper).toResponse(restaurant);
+    }
+
+    @Test
     void returnsAllRestaurantResponses() {
         Restaurant athensRestaurant = Restaurant.builder()
                 .name("FastBite Athens")
@@ -186,6 +229,31 @@ class RestaurantServiceTest {
                 "Restaurant with id " + restaurantId + " was not found",
                 exception.getMessage()
         );
+        verify(restaurantRepository).findById(restaurantId);
+        verifyNoInteractions(restaurantMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenUpdatingRestaurantThatDoesNotExist() {
+        UUID restaurantId = UUID.randomUUID();
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest(
+                "FastBite Piraeus",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        when(restaurantRepository.findById(restaurantId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                RestaurantNotFoundException.class,
+                () -> restaurantService.updateRestaurant(restaurantId, request)
+        );
+
         verify(restaurantRepository).findById(restaurantId);
         verifyNoInteractions(restaurantMapper);
     }

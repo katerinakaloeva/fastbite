@@ -2,6 +2,7 @@ package com.fastbite.restaurantservice.restaurant.controller;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.service.RestaurantService;
 import org.junit.jupiter.api.Test;
@@ -15,10 +16,12 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,6 +72,50 @@ class RestaurantControllerTest {
                 "Athens",
                 "10552"
         ));
+    }
+
+    @Test
+    void updatesRestaurantWhenRequestIsValid() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest(
+                null,
+                null,
+                null,
+                "+30 210 987 6543",
+                "Piraeus",
+                null,
+                null
+        );
+        RestaurantResponse response = new RestaurantResponse(
+                restaurantId,
+                "FastBite Athens",
+                "Athens, Greece",
+                true,
+                null,
+                "+30 210 987 6543",
+                "Piraeus",
+                null,
+                null,
+                null
+        );
+
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "phone": "+30 210 987 6543",
+                                  "city": "Piraeus"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(restaurantId.toString()))
+                .andExpect(jsonPath("$.phone").value("+30 210 987 6543"))
+                .andExpect(jsonPath("$.city").value("Piraeus"));
+
+        verify(restaurantService).updateRestaurant(restaurantId, request);
     }
 
     @Test
@@ -133,6 +180,24 @@ class RestaurantControllerTest {
     }
 
     @Test
+    void returnsValidationErrorWhenUpdateRequestIsInvalid() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "phone": "1234567890123456789012345678901"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
     void returnsNotFoundErrorWhenRestaurantDoesNotExist() throws Exception {
         UUID restaurantId = UUID.randomUUID();
 
@@ -146,6 +211,37 @@ class RestaurantControllerTest {
                         .value("Restaurant with id " + restaurantId + " was not found"));
 
         verify(restaurantService).getRestaurantById(restaurantId);
+    }
+
+    @Test
+    void returnsNotFoundErrorWhenUpdatingRestaurantThatDoesNotExist() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UpdateRestaurantRequest request = new UpdateRestaurantRequest(
+                null,
+                null,
+                null,
+                "+30 210 987 6543",
+                null,
+                null,
+                null
+        );
+
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class)))
+                .thenThrow(new RestaurantNotFoundException(restaurantId));
+
+        mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "phone": "+30 210 987 6543"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESTAURANT_NOT_FOUND"))
+                .andExpect(jsonPath("$.message")
+                        .value("Restaurant with id " + restaurantId + " was not found"));
+
+        verify(restaurantService).updateRestaurant(restaurantId, request);
     }
 
     private RestaurantResponse restaurantResponse(UUID id, String name, String address) {
