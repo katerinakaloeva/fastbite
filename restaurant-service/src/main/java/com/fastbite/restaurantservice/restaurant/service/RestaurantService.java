@@ -2,6 +2,7 @@ package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.RestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
@@ -32,6 +33,19 @@ public class RestaurantService {
     public RestaurantResponse getRestaurantById(UUID restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new RestaurantNotFoundException(restaurantId));
+
+        return restaurantMapper.toResponse(restaurant);
+    }
+
+    @Transactional
+    public RestaurantResponse updateRestaurant(
+            UUID restaurantId,
+            UpdateRestaurantRequest request
+    ) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new RestaurantNotFoundException(restaurantId));
+
+        restaurantMapper.updateEntity(request, restaurant);
 
         return restaurantMapper.toResponse(restaurant);
     }

@@ -58,4 +58,42 @@ public class Restaurant {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    public void updateDetails(
+            String name,
+            String address,
+            String description,
+            String phone,
+            String city,
+            String postalCode,
+            Boolean active
+    ) {
+        if (name != null) {
+            this.name = name;
+        }
+
+        if (address != null) {
+            this.address = address;
+        }
+
+        if (description != null) {
+            this.description = description;
+        }
+
+        if (phone != null) {
+            this.phone = phone;
+        }
+
+        if (city != null) {
+            this.city = city;
+        }
+
+        if (postalCode != null) {
+            this.postalCode = postalCode;
+        }
+
+        if (active != null) {
+            this.active = active;
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.fastbite.restaurantservice.restaurant.mapper;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,21 @@ public class RestaurantMapper {
                 .city(request.city())
                 .postalCode(request.postalCode())
                 .build();
+    }
+
+    public void updateEntity(
+            UpdateRestaurantRequest request,
+            Restaurant restaurant
+    ) {
+        restaurant.updateDetails(
+                request.name(),
+                request.address(),
+                request.description(),
+                request.phone(),
+                request.city(),
+                request.postalCode(),
+                request.active()
+        );
     }
 
     public RestaurantResponse toResponse(Restaurant restaurant) {

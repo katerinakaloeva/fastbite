@@ -3,6 +3,10 @@ package com.fastbite.restaurantservice.restaurant.controller;
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.service.MenuCategoryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(
+        name = "Menu categories",
+        description = "Operations for managing a restaurant's menu categories."
+)
 @RestController
 @RequestMapping("/restaurants/{restaurantId}/menu-categories")
 @RequiredArgsConstructor
@@ -24,6 +32,15 @@ public class MenuCategoryController {
 
     private final MenuCategoryService menuCategoryService;
 
+    @Operation(
+            summary = "Create a menu category",
+            description = "Creates a menu category for a restaurant."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Menu category created successfully."),
+            @ApiResponse(responseCode = "400", description = "Invalid menu category data."),
+            @ApiResponse(responseCode = "404", description = "Restaurant not found.")
+    })
     @PostMapping
     public ResponseEntity<MenuCategoryResponse> createMenuCategory(
             @PathVariable UUID restaurantId,
@@ -37,6 +54,14 @@ public class MenuCategoryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @Operation(
+            summary = "Get a restaurant's menu categories",
+            description = "Returns the menu categories of a restaurant ordered by display order."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Menu categories returned successfully."),
+            @ApiResponse(responseCode = "404", description = "Restaurant not found.")
+    })
     @GetMapping
     public ResponseEntity<List<MenuCategoryResponse>> getCategoriesByRestaurantId(
             @PathVariable UUID restaurantId
