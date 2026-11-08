@@ -2,6 +2,8 @@ package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
+import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.MenuCategoryMapper;
 import com.fastbite.restaurantservice.restaurant.model.MenuCategory;
@@ -93,6 +95,44 @@ class MenuCategoryServiceTest {
     }
 
     @Test
+    void updatesMenuCategoryWhenItBelongsToRestaurant() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = restaurant(restaurantId);
+        MenuCategory menuCategory = menuCategory(restaurant, "Burgers", 0);
+        UpdateMenuCategoryRequest request = new UpdateMenuCategoryRequest(
+                "Main dishes",
+                1,
+                false
+        );
+        MenuCategoryResponse expectedResponse = new MenuCategoryResponse(
+                menuCategory.getId(),
+                restaurantId,
+                "Main dishes",
+                1,
+                false,
+                null,
+                null
+        );
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+        when(menuCategoryRepository.findById(menuCategory.getId()))
+                .thenReturn(Optional.of(menuCategory));
+        when(menuCategoryMapper.toResponse(menuCategory)).thenReturn(expectedResponse);
+
+        MenuCategoryResponse result = menuCategoryService.updateMenuCategory(
+                restaurantId,
+                menuCategory.getId(),
+                request
+        );
+
+        assertSame(expectedResponse, result);
+        verify(restaurantRepository).findById(restaurantId);
+        verify(menuCategoryRepository).findById(menuCategory.getId());
+        verify(menuCategoryMapper).updateEntity(request, menuCategory);
+        verify(menuCategoryMapper).toResponse(menuCategory);
+    }
+
+    @Test
     void throwsExceptionWhenRestaurantDoesNotExist() {
         UUID restaurantId = UUID.randomUUID();
 
@@ -105,6 +145,72 @@ class MenuCategoryServiceTest {
 
         verify(restaurantRepository).findById(restaurantId);
         verifyNoInteractions(menuCategoryRepository, menuCategoryMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenUpdatingMenuCategoryForMissingRestaurant() {
+        UUID restaurantId = UUID.randomUUID();
+        UpdateMenuCategoryRequest request = new UpdateMenuCategoryRequest("Burgers", null, null);
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                RestaurantNotFoundException.class,
+                () -> menuCategoryService.updateMenuCategory(
+                        restaurantId,
+                        UUID.randomUUID(),
+                        request
+                )
+        );
+
+        verify(restaurantRepository).findById(restaurantId);
+        verifyNoInteractions(menuCategoryRepository, menuCategoryMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenUpdatingMenuCategoryThatDoesNotExist() {
+        UUID restaurantId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        Restaurant restaurant = restaurant(restaurantId);
+        UpdateMenuCategoryRequest request = new UpdateMenuCategoryRequest("Burgers", null, null);
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+        when(menuCategoryRepository.findById(categoryId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                MenuCategoryNotFoundException.class,
+                () -> menuCategoryService.updateMenuCategory(restaurantId, categoryId, request)
+        );
+
+        verify(restaurantRepository).findById(restaurantId);
+        verify(menuCategoryRepository).findById(categoryId);
+        verifyNoInteractions(menuCategoryMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenMenuCategoryBelongsToAnotherRestaurant() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = restaurant(restaurantId);
+        Restaurant anotherRestaurant = restaurant(UUID.randomUUID());
+        MenuCategory menuCategory = menuCategory(anotherRestaurant, "Burgers", 0);
+        UpdateMenuCategoryRequest request = new UpdateMenuCategoryRequest("Burgers", null, null);
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+        when(menuCategoryRepository.findById(menuCategory.getId()))
+                .thenReturn(Optional.of(menuCategory));
+
+        assertThrows(
+                MenuCategoryNotFoundException.class,
+                () -> menuCategoryService.updateMenuCategory(
+                        restaurantId,
+                        menuCategory.getId(),
+                        request
+                )
+        );
+
+        verify(restaurantRepository).findById(restaurantId);
+        verify(menuCategoryRepository).findById(menuCategory.getId());
+        verifyNoInteractions(menuCategoryMapper);
     }
 
     private Restaurant restaurant(UUID restaurantId) {

@@ -2,6 +2,8 @@ package com.fastbite.restaurantservice.restaurant.controller;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
+import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.service.MenuCategoryService;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -62,6 +65,53 @@ class MenuCategoryControllerTest {
                 restaurantId,
                 new CreateMenuCategoryRequest("Burgers", 0)
         );
+    }
+
+    @Test
+    void updatesMenuCategoryWhenRequestIsValid() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        UpdateMenuCategoryRequest request = new UpdateMenuCategoryRequest(
+                "Main dishes",
+                2,
+                false
+        );
+        MenuCategoryResponse response = new MenuCategoryResponse(
+                categoryId,
+                restaurantId,
+                "Main dishes",
+                2,
+                false,
+                null,
+                null
+        );
+
+        when(menuCategoryService.updateMenuCategory(
+                eq(restaurantId),
+                eq(categoryId),
+                any(UpdateMenuCategoryRequest.class)
+        )).thenReturn(response);
+
+        mockMvc.perform(patch(
+                        "/restaurants/{restaurantId}/menu-categories/{categoryId}",
+                        restaurantId,
+                        categoryId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Main dishes",
+                                  "displayOrder": 2,
+                                  "active": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(categoryId.toString()))
+                .andExpect(jsonPath("$.name").value("Main dishes"))
+                .andExpect(jsonPath("$.displayOrder").value(2))
+                .andExpect(jsonPath("$.active").value(false));
+
+        verify(menuCategoryService).updateMenuCategory(restaurantId, categoryId, request);
     }
 
     @Test
@@ -115,6 +165,29 @@ class MenuCategoryControllerTest {
     }
 
     @Test
+    void returnsValidationErrorWhenUpdateRequestIsInvalid() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+
+        mockMvc.perform(patch(
+                        "/restaurants/{restaurantId}/menu-categories/{categoryId}",
+                        restaurantId,
+                        categoryId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "displayOrder": -1
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.displayOrder").exists());
+
+        verifyNoInteractions(menuCategoryService);
+    }
+
+    @Test
     void returnsNotFoundErrorWhenRestaurantDoesNotExist() throws Exception {
         UUID restaurantId = UUID.randomUUID();
 
@@ -126,6 +199,39 @@ class MenuCategoryControllerTest {
                 .andExpect(jsonPath("$.code").value("RESTAURANT_NOT_FOUND"));
 
         verify(menuCategoryService).getCategoriesByRestaurantId(restaurantId);
+    }
+
+    @Test
+    void returnsNotFoundErrorWhenMenuCategoryDoesNotExist() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        UpdateMenuCategoryRequest request = new UpdateMenuCategoryRequest(
+                null,
+                2,
+                null
+        );
+
+        when(menuCategoryService.updateMenuCategory(
+                eq(restaurantId),
+                eq(categoryId),
+                any(UpdateMenuCategoryRequest.class)
+        )).thenThrow(new MenuCategoryNotFoundException(categoryId));
+
+        mockMvc.perform(patch(
+                        "/restaurants/{restaurantId}/menu-categories/{categoryId}",
+                        restaurantId,
+                        categoryId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "displayOrder": 2
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MENU_CATEGORY_NOT_FOUND"));
+
+        verify(menuCategoryService).updateMenuCategory(restaurantId, categoryId, request);
     }
 
     private MenuCategoryResponse categoryResponse(

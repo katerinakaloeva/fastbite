@@ -60,4 +60,32 @@ public class MenuItem {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    public void updateDetails(
+            String name,
+            String description,
+            BigDecimal price,
+            String currency,
+            Boolean available
+    ) {
+        if (name != null) {
+            this.name = name;
+        }
+
+        if (description != null) {
+            this.description = description;
+        }
+
+        if (price != null) {
+            this.price = price;
+        }
+
+        if (currency != null) {
+            this.currency = currency;
+        }
+
+        if (available != null) {
+            this.available = available;
+        }
+    }
 }
