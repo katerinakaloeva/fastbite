@@ -2,7 +2,9 @@ package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuItemResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
+import com.fastbite.restaurantservice.restaurant.exception.MenuItemNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.MenuItemMapper;
 import com.fastbite.restaurantservice.restaurant.model.MenuCategory;
 import com.fastbite.restaurantservice.restaurant.model.MenuItem;
@@ -102,6 +104,47 @@ class MenuItemServiceTest {
     }
 
     @Test
+    void updatesMenuItemWhenItBelongsToCategory() {
+        UUID categoryId = UUID.randomUUID();
+        MenuCategory category = menuCategory(categoryId);
+        MenuItem menuItem = menuItem(category, "Cheeseburger", new BigDecimal("8.50"));
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest(
+                null,
+                null,
+                new BigDecimal("9.50"),
+                null,
+                false
+        );
+        MenuItemResponse expectedResponse = new MenuItemResponse(
+                menuItem.getId(),
+                categoryId,
+                "Cheeseburger",
+                null,
+                new BigDecimal("9.50"),
+                "EUR",
+                false,
+                null,
+                null
+        );
+
+        when(menuCategoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(menuItemRepository.findById(menuItem.getId())).thenReturn(Optional.of(menuItem));
+        when(menuItemMapper.toResponse(menuItem)).thenReturn(expectedResponse);
+
+        MenuItemResponse result = menuItemService.updateMenuItem(
+                categoryId,
+                menuItem.getId(),
+                request
+        );
+
+        assertSame(expectedResponse, result);
+        verify(menuCategoryRepository).findById(categoryId);
+        verify(menuItemRepository).findById(menuItem.getId());
+        verify(menuItemMapper).updateEntity(request, menuItem);
+        verify(menuItemMapper).toResponse(menuItem);
+    }
+
+    @Test
     void throwsExceptionWhenCategoryDoesNotExist() {
         UUID categoryId = UUID.randomUUID();
 
@@ -114,6 +157,63 @@ class MenuItemServiceTest {
 
         verify(menuCategoryRepository).findById(categoryId);
         verifyNoInteractions(menuItemRepository, menuItemMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenUpdatingMenuItemForMissingCategory() {
+        UUID categoryId = UUID.randomUUID();
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest("Cheeseburger", null, null, null, null);
+
+        when(menuCategoryRepository.findById(categoryId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                MenuCategoryNotFoundException.class,
+                () -> menuItemService.updateMenuItem(categoryId, UUID.randomUUID(), request)
+        );
+
+        verify(menuCategoryRepository).findById(categoryId);
+        verifyNoInteractions(menuItemRepository, menuItemMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenUpdatingMenuItemThatDoesNotExist() {
+        UUID categoryId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        MenuCategory category = menuCategory(categoryId);
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest("Cheeseburger", null, null, null, null);
+
+        when(menuCategoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(menuItemRepository.findById(itemId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                MenuItemNotFoundException.class,
+                () -> menuItemService.updateMenuItem(categoryId, itemId, request)
+        );
+
+        verify(menuCategoryRepository).findById(categoryId);
+        verify(menuItemRepository).findById(itemId);
+        verifyNoInteractions(menuItemMapper);
+    }
+
+    @Test
+    void throwsExceptionWhenMenuItemBelongsToAnotherCategory() {
+        UUID categoryId = UUID.randomUUID();
+        MenuCategory category = menuCategory(categoryId);
+        MenuCategory anotherCategory = menuCategory(UUID.randomUUID());
+        MenuItem menuItem = menuItem(anotherCategory, "Cheeseburger", new BigDecimal("8.50"));
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest("Cheeseburger", null, null, null, null);
+
+        when(menuCategoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(menuItemRepository.findById(menuItem.getId())).thenReturn(Optional.of(menuItem));
+
+        assertThrows(
+                MenuItemNotFoundException.class,
+                () -> menuItemService.updateMenuItem(categoryId, menuItem.getId(), request)
+        );
+
+        verify(menuCategoryRepository).findById(categoryId);
+        verify(menuItemRepository).findById(menuItem.getId());
+        verifyNoInteractions(menuItemMapper);
     }
 
     private MenuCategory menuCategory(UUID categoryId) {

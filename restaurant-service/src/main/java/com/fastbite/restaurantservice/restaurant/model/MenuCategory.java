@@ -54,4 +54,22 @@ public class MenuCategory {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    public void updateDetails(
+            String name,
+            Integer displayOrder,
+            Boolean active
+    ) {
+        if (name != null) {
+            this.name = name;
+        }
+
+        if (displayOrder != null) {
+            this.displayOrder = displayOrder;
+        }
+
+        if (active != null) {
+            this.active = active;
+        }
+    }
 }

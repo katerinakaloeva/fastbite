@@ -2,7 +2,9 @@ package com.fastbite.restaurantservice.restaurant.controller;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuItemResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
+import com.fastbite.restaurantservice.restaurant.exception.MenuItemNotFoundException;
 import com.fastbite.restaurantservice.restaurant.service.MenuItemService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -79,6 +82,51 @@ class MenuItemControllerTest {
     }
 
     @Test
+    void updatesMenuItemWhenRequestIsValid() throws Exception {
+        UUID categoryId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest(
+                "Double Cheeseburger",
+                null,
+                null,
+                null,
+                false
+        );
+        MenuItemResponse response = new MenuItemResponse(
+                itemId,
+                categoryId,
+                "Double Cheeseburger",
+                null,
+                new BigDecimal("8.50"),
+                "EUR",
+                false,
+                null,
+                null
+        );
+
+        when(menuItemService.updateMenuItem(
+                eq(categoryId),
+                eq(itemId),
+                any(UpdateMenuItemRequest.class)
+        )).thenReturn(response);
+
+        mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}", categoryId, itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Double Cheeseburger",
+                                  "available": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(itemId.toString()))
+                .andExpect(jsonPath("$.name").value("Double Cheeseburger"))
+                .andExpect(jsonPath("$.available").value(false));
+
+        verify(menuItemService).updateMenuItem(categoryId, itemId, request);
+    }
+
+    @Test
     void returnsAvailableItemsForCategory() throws Exception {
         UUID categoryId = UUID.randomUUID();
         MenuItemResponse cheeseburger = menuItemResponse(
@@ -131,6 +179,27 @@ class MenuItemControllerTest {
     }
 
     @Test
+    void returnsValidationErrorWhenUpdateRequestIsInvalid() throws Exception {
+        UUID categoryId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}", categoryId, itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "price": -1,
+                                  "currency": "eur"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.price").exists())
+                .andExpect(jsonPath("$.fieldErrors.currency").exists());
+
+        verifyNoInteractions(menuItemService);
+    }
+
+    @Test
     void returnsNotFoundErrorWhenCategoryDoesNotExist() throws Exception {
         UUID categoryId = UUID.randomUUID();
 
@@ -142,6 +211,37 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.code").value("MENU_CATEGORY_NOT_FOUND"));
 
         verify(menuItemService).getAvailableItemsByCategoryId(categoryId);
+    }
+
+    @Test
+    void returnsNotFoundErrorWhenMenuItemDoesNotExist() throws Exception {
+        UUID categoryId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        UpdateMenuItemRequest request = new UpdateMenuItemRequest(
+                null,
+                null,
+                new BigDecimal("9.50"),
+                null,
+                null
+        );
+
+        when(menuItemService.updateMenuItem(
+                eq(categoryId),
+                eq(itemId),
+                any(UpdateMenuItemRequest.class)
+        )).thenThrow(new MenuItemNotFoundException(itemId));
+
+        mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}", categoryId, itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "price": 9.50
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MENU_ITEM_NOT_FOUND"));
+
+        verify(menuItemService).updateMenuItem(categoryId, itemId, request);
     }
 
     private MenuItemResponse menuItemResponse(

@@ -2,6 +2,7 @@ package com.fastbite.restaurantservice.restaurant.mapper;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
+import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.model.MenuCategory;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,17 @@ public class MenuCategoryMapper {
                 .name(request.name())
                 .displayOrder(displayOrder)
                 .build();
+    }
+
+    public void updateEntity(
+            UpdateMenuCategoryRequest request,
+            MenuCategory menuCategory
+    ) {
+        menuCategory.updateDetails(
+                request.name(),
+                request.displayOrder(),
+                request.active()
+        );
     }
 
     public MenuCategoryResponse toResponse(MenuCategory menuCategory) {
