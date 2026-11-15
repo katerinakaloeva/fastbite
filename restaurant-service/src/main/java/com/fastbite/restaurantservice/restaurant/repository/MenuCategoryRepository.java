@@ -9,5 +9,6 @@ import java.util.UUID;
 public interface MenuCategoryRepository extends JpaRepository<MenuCategory, UUID> {
 
     List<MenuCategory> findAllByRestaurant_IdOrderByDisplayOrderAsc(UUID restaurantId);
+    List<MenuCategory> findAllByRestaurant_IdAndActiveTrueOrderByDisplayOrderAsc(UUID restaurantId);
 
 }

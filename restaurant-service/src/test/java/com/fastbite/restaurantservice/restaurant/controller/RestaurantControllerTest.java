@@ -1,9 +1,13 @@
 package com.fastbite.restaurantservice.restaurant.controller;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.dto.PublicMenuCategoryResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicMenuItemResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicMenuResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
+import com.fastbite.restaurantservice.restaurant.service.PublicMenuService;
 import com.fastbite.restaurantservice.restaurant.service.RestaurantService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +39,9 @@ class RestaurantControllerTest {
 
     @MockitoBean
     private RestaurantService restaurantService;
+
+    @MockitoBean
+    private PublicMenuService publicMenuService;
 
     @Test
     void createsRestaurantWhenRequestIsValid() throws Exception {
@@ -162,6 +170,65 @@ class RestaurantControllerTest {
     }
 
     @Test
+    void returnsPublicMenuWithOnlyPublicFields() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        PublicMenuResponse response = new PublicMenuResponse(
+                restaurantId,
+                "FastBite Athens",
+                List.of(new PublicMenuCategoryResponse(
+                        categoryId,
+                        "Burgers",
+                        1,
+                        List.of(new PublicMenuItemResponse(
+                                itemId,
+                                "Classic Burger",
+                                "Beef burger",
+                                new BigDecimal("8.50"),
+                                "EUR"
+                        ))
+                ))
+        );
+
+        when(publicMenuService.getPublicMenu(restaurantId)).thenReturn(response);
+
+        mockMvc.perform(get("/restaurants/{restaurantId}/menu", restaurantId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.restaurantId").value(restaurantId.toString()))
+                .andExpect(jsonPath("$.restaurantName").value("FastBite Athens"))
+                .andExpect(jsonPath("$.categories[0].id").value(categoryId.toString()))
+                .andExpect(jsonPath("$.categories[0].name").value("Burgers"))
+                .andExpect(jsonPath("$.categories[0].displayOrder").value(1))
+                .andExpect(jsonPath("$.categories[0].items[0].id").value(itemId.toString()))
+                .andExpect(jsonPath("$.categories[0].items[0].name").value("Classic Burger"))
+                .andExpect(jsonPath("$.categories[0].items[0].price").value(8.50))
+                .andExpect(jsonPath("$.categories[0].items[0].currency").value("EUR"))
+                .andExpect(jsonPath("$.categories[0].active").doesNotExist())
+                .andExpect(jsonPath("$.categories[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$.categories[0].items[0].available").doesNotExist())
+                .andExpect(jsonPath("$.categories[0].items[0].createdAt").doesNotExist());
+
+        verify(publicMenuService).getPublicMenu(restaurantId);
+    }
+
+    @Test
+    void returnsNotFoundWhenPublicMenuRestaurantDoesNotExistOrIsInactive() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+
+        when(publicMenuService.getPublicMenu(restaurantId))
+                .thenThrow(new RestaurantNotFoundException(restaurantId));
+
+        mockMvc.perform(get("/restaurants/{restaurantId}/menu", restaurantId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESTAURANT_NOT_FOUND"))
+                .andExpect(jsonPath("$.message")
+                        .value("Restaurant with id " + restaurantId + " was not found"));
+
+        verify(publicMenuService).getPublicMenu(restaurantId);
+    }
+
+    @Test
     void returnsValidationErrorWhenRequestIsInvalid() throws Exception {
         mockMvc.perform(post("/restaurants")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -193,6 +260,60 @@ class RestaurantControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors.phone").exists());
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
+    void rejectsWhitespaceOnlyRestaurantNameAndAddressInPatch() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "   ",
+                                  "address": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name")
+                        .value("Restaurant name must not be blank"))
+                .andExpect(jsonPath("$.fieldErrors.address")
+                        .value("Restaurant address must not be blank"));
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
+    void returnsBadRequestWhenRestaurantIdIsNotAUuid() throws Exception {
+        mockMvc.perform(get("/restaurants/not-a-uuid/menu"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.restaurantId").value("Invalid format"));
+
+        verifyNoInteractions(publicMenuService);
+    }
+
+    @Test
+    void returnsBadRequestWhenJsonBodyIsMalformed() throws Exception {
+        mockMvc.perform(post("/restaurants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ invalid json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("Request body is missing or malformed"));
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
+    void returnsBadRequestWhenRequestBodyIsMissing() throws Exception {
+        mockMvc.perform(post("/restaurants")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("Request body is missing or malformed"));
 
         verifyNoInteractions(restaurantService);
     }

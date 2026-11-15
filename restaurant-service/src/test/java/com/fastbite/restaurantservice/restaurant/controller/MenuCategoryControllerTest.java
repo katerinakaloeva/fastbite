@@ -188,6 +188,29 @@ class MenuCategoryControllerTest {
     }
 
     @Test
+    void rejectsWhitespaceOnlyCategoryNameInPatch() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+
+        mockMvc.perform(patch(
+                        "/restaurants/{restaurantId}/menu-categories/{categoryId}",
+                        restaurantId,
+                        categoryId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "   "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name")
+                        .value("Menu category name must not be blank"));
+
+        verifyNoInteractions(menuCategoryService);
+    }
+
+    @Test
     void returnsNotFoundErrorWhenRestaurantDoesNotExist() throws Exception {
         UUID restaurantId = UUID.randomUUID();
 

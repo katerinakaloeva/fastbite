@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface MenuItemRepository extends JpaRepository<MenuItem, UUID> {
 
     List<MenuItem> findAllByCategory_IdAndAvailableTrue(UUID categoryId);
+    List<MenuItem> findAllByCategory_IdInAndAvailableTrue(List<UUID> categoryIds);
 }
