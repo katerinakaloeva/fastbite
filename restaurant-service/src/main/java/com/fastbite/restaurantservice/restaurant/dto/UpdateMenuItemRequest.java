@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 public record UpdateMenuItemRequest(
 
         @Size(min = 1, max = 150)
+        @Pattern(regexp = ".*\\S.*", message = "Menu item name must not be blank")
         String name,
 
         String description,

@@ -1,13 +1,16 @@
 package com.fastbite.restaurantservice.restaurant.dto;
 
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record UpdateRestaurantRequest(
 
         @Size(min = 1, max = 100)
+        @Pattern(regexp = ".*\\S.*", message = "Restaurant name must not be blank")
         String name,
 
         @Size(min = 1, max = 255)
+        @Pattern(regexp = ".*\\S.*", message = "Restaurant address must not be blank")
         String address,
 
         String description,

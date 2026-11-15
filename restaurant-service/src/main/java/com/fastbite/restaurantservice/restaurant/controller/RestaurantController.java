@@ -1,8 +1,10 @@
 package com.fastbite.restaurantservice.restaurant.controller;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.dto.PublicMenuResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.service.PublicMenuService;
 import com.fastbite.restaurantservice.restaurant.service.RestaurantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,6 +35,7 @@ import java.util.UUID;
 public class RestaurantController {
 
     private final RestaurantService restaurantService;
+    private final PublicMenuService publicMenuService;
 
     @Operation(
             summary = "Create a restaurant",
@@ -81,6 +84,24 @@ public class RestaurantController {
     @GetMapping
     public ResponseEntity<List<RestaurantResponse>> getAllRestaurants() {
         List<RestaurantResponse> response = restaurantService.getAllRestaurants();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Get a restaurant's public menu",
+            description = "Returns active categories and available menu items for an active restaurant."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Public menu returned successfully."),
+            @ApiResponse(responseCode = "400", description = "Invalid restaurant ID format."),
+            @ApiResponse(responseCode = "404", description = "Restaurant not found or inactive.")
+    })
+    @GetMapping("/{restaurantId}/menu")
+    public ResponseEntity<PublicMenuResponse> getPublicMenu(
+            @PathVariable UUID restaurantId
+    ) {
+        PublicMenuResponse response = publicMenuService.getPublicMenu(restaurantId);
 
         return ResponseEntity.ok(response);
     }
