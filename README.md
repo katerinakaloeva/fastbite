@@ -4,7 +4,7 @@ FastBite is a backend-focused portfolio and learning project for a simplified fo
 
 The project is being developed incrementally to practise Java backend engineering: domain modelling, database migrations, REST APIs, security, testing, asynchronous events and clean service boundaries.
 
-> **Project status:** in progress. The first service, `restaurant-service`, is currently being built. This repository does not contain a frontend yet.
+> **Project status:** in progress. The repository contains independent restaurant-service and order-service applications. This repository does not contain a frontend yet.
 
 ## Why this project
 
@@ -28,9 +28,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the complete plan, service boundaries
 - JPA `Restaurant` entity and Spring Data repository.
 - JUnit integration-test foundation for repository persistence.
 
-The next work inside this service is to complete the restaurant and menu domain, then expose REST endpoints and Swagger documentation.
+Restaurant and menu REST endpoints, public menu filtering and Swagger documentation are implemented.
 
-## Planned services
+### Order service
+
+Guest checkout is implemented in the independent [order-service](order-service/README.md), with its own Gradle build and database configuration. It calls the restaurant public menu API through REST to validate products and read prices, then stores order snapshots in its own database.
+
+Isolated Mockito, WebMvc and HTTP-client tests can run without Docker or PostgreSQL. Live database migration and end-to-end execution are not yet verified.
+
+## Services and roadmap
 
 | Service | Responsibility | Database |
 | --- | --- | --- |
@@ -113,7 +119,7 @@ POSTGRES_PORT
 
 ## Current limitations
 
-- No public REST endpoints or Swagger UI yet.
+- Restaurant/menu and guest-order REST endpoints are implemented; live cross-service/database execution remains to be verified.
 - No authentication or authorization yet.
 - Kafka, gateway, delivery, payment and notifications are planned phases.
 - Payments will be simulated; no real card data will be stored.

@@ -284,4 +284,34 @@ class MenuItemControllerTest {
                 null
         );
     }
-}
+
+    @Test
+    void rejectsCreatePricesThatDoNotFitDatabasePrecision() throws Exception {
+        for (String price : List.of("8.555", "100000000.00")) {
+            mockMvc.perform(post("/menu-categories/{categoryId}/menu-items", UUID.randomUUID())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"name": "Burger", "price": %s, "currency": "EUR"}
+                                    """.formatted(price)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.price")
+                            .value("Price must have at most 8 integer digits and 2 decimal places"));
+        }
+        verifyNoInteractions(menuItemService);
+    }
+
+    @Test
+    void rejectsUpdatePricesThatDoNotFitDatabasePrecision() throws Exception {
+        for (String price : List.of("8.555", "100000000.00")) {
+            mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}",
+                            UUID.randomUUID(), UUID.randomUUID())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"price": %s}
+                                    """.formatted(price)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.price")
+                            .value("Price must have at most 8 integer digits and 2 decimal places"));
+        }
+        verifyNoInteractions(menuItemService);
+    }}

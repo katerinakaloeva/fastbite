@@ -4,7 +4,7 @@
 
 FastBite is a portfolio-ready backend project for a simplified food ordering and delivery platform. It is intentionally developed in small phases so that each architectural decision can be understood, tested and explained.
 
-The initial scope is backend only. REST APIs and Swagger will be added during the restaurant-service phase; a frontend comes after the backend services are established.
+The initial scope is backend only. Restaurant/menu and guest-order REST APIs with Swagger are implemented in two independent services. A frontend comes after the backend services are established.
 
 Out of scope for the MVP:
 
@@ -54,7 +54,7 @@ flowchart TD
     Kafka -. events .-> Order
 ```
 
-The API gateway is part of the target architecture, not the first milestone. During Phase 1, `restaurant-service` is exposed directly and explored through Swagger.
+The diagram shows the target architecture. Currently, restaurant-service and order-service are exposed directly and have their own Swagger documentation. The API gateway and the remaining services are planned.
 
 ## 4. Services and responsibilities
 
@@ -90,11 +90,11 @@ Services use Spring `RestClient` when a response is needed immediately.
 
 Example: during checkout, `order-service` asks `restaurant-service` whether menu items are available and retrieves their current prices before creating the order snapshot.
 
-REST calls need timeouts, controlled retries and clear error handling. Services must not trust a user identifier received from another service without authentication and authorization rules.
+The current checkout client has connection/read timeouts and explicit error handling. It reuses GET /restaurants/{restaurantId}/menu to retrieve available products from active categories of an active restaurant. It does not retry automatically; controlled retries can be added when needed. Future authenticated service calls must validate identity and authorization.
 
 ### Kafka: asynchronous communication
 
-Kafka is introduced in **Phase 3** with `order-service`. A producer publishes a business event after an important state change; consumers process that event independently.
+Kafka remains planned for Phase 3. Guest checkout has been implemented first, without event publishing. In the planned event flow, a producer publishes a business event after an important state change and consumers process it independently.
 
 Spring Kafka components:
 
@@ -167,7 +167,7 @@ The current first migration creates the initial `restaurants` table. Later chang
 
 ## 8. REST API plan
 
-All APIs will be versioned under `/api/v1`. Public responses use DTOs; JPA entities are never exposed directly.
+The target API plan uses /api/v1. Current controllers use unversioned paths, including GET /restaurants/{restaurantId}/menu and POST /restaurants/{restaurantId}/orders. The table below remains the target API plan. Public responses use DTOs; JPA entities are never exposed directly.
 
 Planned restaurant endpoints:
 
@@ -182,15 +182,16 @@ Planned restaurant endpoints:
 | `POST` | `/api/v1/restaurants/{restaurantId}/items` | Owner/Admin + ownership | Create a menu item |
 | `PATCH` | `/api/v1/restaurants/{restaurantId}/items/{itemId}/availability` | Owner/Admin + ownership | Enable or disable an item |
 
-Swagger/OpenAPI documents these endpoints once the REST layer is added. Until JWT authentication exists, owner-only endpoints are either postponed or protected by a clearly documented local-only development setup; unsecured owner endpoints are not treated as production-ready.
+Swagger/OpenAPI documents the implemented restaurant/menu and order endpoints. The access roles in the target table are planned: authentication and authorization are not implemented yet. Current management endpoints are for local development and are not ready for public deployment.
 
-HTTP behaviour will use meaningful status codes and `ProblemDetail` error responses:
+Current errors use ApiError with timestamp, status, code, message, path and fieldErrors. Each service has its own ApplicationException base, concrete exceptions with an ErrorCode and message, and GlobalExceptionHandler. Relevant HTTP statuses, including planned authentication/status-transition behaviour, are:
 
 - `400` for invalid input;
 - `401` for missing or invalid authentication;
 - `403` for insufficient permissions or ownership;
 - `404` for missing resources;
-- `409` for conflicts or invalid state transitions.
+- `409` for conflicts or invalid state transitions (planned).
+- `503` when checkout cannot obtain a valid response from restaurant-service.
 
 ## 9. Development roadmap
 
@@ -234,21 +235,49 @@ Testcontainers is planned for realistic PostgreSQL and Kafka integration tests w
 
 ## 12. Current status
 
-The current focus is Phase 1 and `restaurant-service`.
+Two independently buildable Spring Boot applications are implemented:
 
-Implemented foundation:
+| Service | Implemented responsibility | Owned database |
+| --- | --- | --- |
+| restaurant-service | Restaurants, menu categories, menu items and the public catalogue | restaurant_db |
+| order-service | Guest order creation, item snapshots and total calculation | order_db |
 
-- Spring Boot / Gradle project setup;
-- PostgreSQL Docker Compose configuration;
-- environment-variable based local configuration with an ignored `.env` file;
-- Flyway migration for the initial restaurant table;
-- JPA entity, repository and repository-test foundation.
+Each service has its own Gradle build/wrapper, application class, database configuration and Flyway migrations. Restaurant-service owns its V1-V5 catalogue migrations. Order-service owns V1__create_orders.sql for orders and order_items.
 
-Next steps:
+### Implemented checkout flow
 
-1. Complete the restaurant and menu data model through new Flyway migrations.
-2. Add DTOs, services, validation and error handling.
-3. Implement restaurant REST endpoints.
-4. Add Swagger/OpenAPI and API tests.
+1. The client sends customer name, phone, delivery address and product IDs/quantities to POST /restaurants/{restaurantId}/orders on order-service. Prices are read from the catalogue, not accepted from the customer.
+2. RestaurantClient uses Spring RestClient to call GET /restaurants/{restaurantId}/menu on restaurant-service. That API exposes only available products in active categories of an active restaurant.
+3. Order-service rejects missing requested products and mixed currencies, snapshots product names/prices and calculates line totals and the order total.
+4. It persists Order and OrderItem in order_db and returns OrderResponse, excluding customer phone and delivery address.
 
-No Kafka, JWT, frontend or additional service is implemented yet. These remain intentional future phases.
+Order.restaurantId and OrderItem.menuItemId are external UUID references. Order-service does not import restaurant-service entities or repositories, query restaurant_db, or define foreign keys to catalogue tables. The OrderItem-to-Order relationship and foreign key are local to order_db.
+
+### Verification and remaining work
+
+- compileJava passed for both services.
+- The order-service isolated service, controller and HTTP-client tests passed. Restaurant-service Mockito service and WebMvc controller tests also passed.
+- HTTP-client tests use in-memory responses. No Docker or PostgreSQL was run for these checks.
+- Live Flyway migrations, persistence and end-to-end execution with both applications and their databases remain unverified.
+- Guest checkout currently precedes the planned identity phase. The roadmap above remains the target plan: identity/JWT, Kafka, delivery, mock payment, notifications and the frontend are future work.
+
+## 13. Common package structure
+
+Both services follow the same convention under their application package:
+
+| Folder | Responsibility |
+| --- | --- |
+| config | Spring configuration, including OpenAPI and HTTP-client configuration where needed |
+| restaurant or order | The service's business feature |
+| feature/controller | HTTP endpoints |
+| feature/dto | Request/response data, including contracts consumed from another API |
+| feature/exception | ApplicationException, ErrorCode, ApiError, GlobalExceptionHandler and concrete exceptions |
+| feature/mapper | Conversion between DTOs and entities |
+| feature/model | Entities and their local business rules |
+| feature/repository | Access to the service's own database |
+| feature/service | Use-case coordination and business checks |
+| feature/client | Calls to another service, when required; currently order/client |
+
+Each application class sits at the root of its application package. Tests mirror production packages. Both services keep application.properties and db/migration under src/main/resources.
+
+Keep this convention for new work. Add a folder only when the service has a responsibility that needs it; restaurant-service does not need an empty client folder.

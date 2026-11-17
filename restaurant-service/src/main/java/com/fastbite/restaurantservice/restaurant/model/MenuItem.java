@@ -15,6 +15,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
@@ -47,6 +49,7 @@ public class MenuItem {
     private BigDecimal price;
 
     @Column(nullable = false, length = 3)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String currency;
 
     @Builder.Default
