@@ -16,6 +16,8 @@ public class RestaurantMapper {
                 .description(request.description())
                 .phone(request.phone())
                 .city(request.city())
+                .municipality(request.municipality())
+                .region(request.region())
                 .postalCode(request.postalCode())
                 .build();
     }
@@ -30,6 +32,8 @@ public class RestaurantMapper {
                 request.description(),
                 request.phone(),
                 request.city(),
+                request.municipality(),
+                request.region(),
                 request.postalCode(),
                 request.active()
         );
@@ -44,6 +48,8 @@ public class RestaurantMapper {
                 restaurant.getDescription(),
                 restaurant.getPhone(),
                 restaurant.getCity(),
+                restaurant.getMunicipality(),
+                restaurant.getRegion(),
                 restaurant.getPostalCode(),
                 restaurant.getCreatedAt(),
                 restaurant.getUpdatedAt()

@@ -21,6 +21,14 @@ public record CreateRestaurantRequest(
         @Size(max = 100, message = "City must not exceed 100 characters")
         String city,
 
+        @NotBlank(message = "Municipality is required")
+        @Size(max = 100, message = "Municipality must not exceed 100 characters")
+        String municipality,
+
+        @NotBlank(message = "Region is required")
+        @Size(max = 100, message = "Region must not exceed 100 characters")
+        String region,
+
         @Size(max = 20, message = "Postal code must not exceed 20 characters")
         String postalCode
 ) {

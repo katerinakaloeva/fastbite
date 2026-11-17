@@ -48,6 +48,12 @@ public class Restaurant {
     @Column(length = 100)
     private String city;
 
+    @Column(length = 100)
+    private String municipality;
+
+    @Column(length = 100)
+    private String region;
+
     @Column(name = "postal_code", length = 20)
     private String postalCode;
 
@@ -65,6 +71,8 @@ public class Restaurant {
             String description,
             String phone,
             String city,
+            String municipality,
+            String region,
             String postalCode,
             Boolean active
     ) {
@@ -86,6 +94,14 @@ public class Restaurant {
 
         if (city != null) {
             this.city = city;
+        }
+
+        if (municipality != null) {
+            this.municipality = municipality;
+        }
+
+        if (region != null) {
+            this.region = region;
         }
 
         if (postalCode != null) {

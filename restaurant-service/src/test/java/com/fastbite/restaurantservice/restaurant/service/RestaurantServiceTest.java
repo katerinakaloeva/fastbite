@@ -1,9 +1,12 @@
 package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
+import com.fastbite.restaurantservice.restaurant.mapper.PublicRestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.mapper.RestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import com.fastbite.restaurantservice.restaurant.repository.RestaurantRepository;
@@ -12,6 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +39,9 @@ class RestaurantServiceTest {
     @Mock
     private RestaurantMapper restaurantMapper;
 
+    @Mock
+    private PublicRestaurantMapper publicRestaurantMapper;
+
     @InjectMocks
     private RestaurantService restaurantService;
 
@@ -44,6 +53,8 @@ class RestaurantServiceTest {
                 "Fast food restaurant",
                 "+30 210 123 4567",
                 "Athens",
+                "Athens Municipality",
+                "Attica",
                 "10552"
         );
         Restaurant restaurantToSave = Restaurant.builder()
@@ -52,6 +63,8 @@ class RestaurantServiceTest {
                 .description(request.description())
                 .phone(request.phone())
                 .city(request.city())
+                .municipality(request.municipality())
+                .region(request.region())
                 .postalCode(request.postalCode())
                 .build();
         UUID restaurantId = UUID.randomUUID();
@@ -62,6 +75,8 @@ class RestaurantServiceTest {
                 .description(request.description())
                 .phone(request.phone())
                 .city(request.city())
+                .municipality(request.municipality())
+                .region(request.region())
                 .postalCode(request.postalCode())
                 .build();
         RestaurantResponse expectedResponse = new RestaurantResponse(
@@ -72,6 +87,8 @@ class RestaurantServiceTest {
                 request.description(),
                 request.phone(),
                 request.city(),
+                request.municipality(),
+                request.region(),
                 request.postalCode(),
                 null,
                 null
@@ -107,6 +124,8 @@ class RestaurantServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
 
@@ -130,6 +149,8 @@ class RestaurantServiceTest {
                 null,
                 "+30 210 987 6543",
                 "Piraeus",
+                null,
+                null,
                 null,
                 null
         );
@@ -214,6 +235,61 @@ class RestaurantServiceTest {
     }
 
     @Test
+    void returnsPublicRestaurantPageUsingFiltersAndPageable() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = Restaurant.builder()
+                .id(restaurantId)
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .city("Athens")
+                .municipality("Athens Municipality")
+                .region("Attica")
+                .build();
+        PublicRestaurantSummaryResponse summary = new PublicRestaurantSummaryResponse(
+                restaurantId,
+                "FastBite Athens",
+                "Fast food restaurant",
+                "Athens",
+                "Athens Municipality",
+                "Attica"
+        );
+        Pageable pageable = PageRequest.of(1, 10);
+        PageImpl<Restaurant> restaurantPage = new PageImpl<>(
+                List.of(restaurant),
+                pageable,
+                21
+        );
+
+        when(restaurantRepository.searchActiveRestaurants(
+                "Athens",
+                "Athens Municipality",
+                "Attica",
+                pageable
+        )).thenReturn(restaurantPage);
+        when(publicRestaurantMapper.toResponse(restaurant)).thenReturn(summary);
+
+        PublicRestaurantPageResponse result = restaurantService.searchPublicRestaurants(
+                "Athens",
+                "Athens Municipality",
+                "Attica",
+                pageable
+        );
+
+        assertEquals(List.of(summary), result.content());
+        assertEquals(1, result.page());
+        assertEquals(10, result.size());
+        assertEquals(21, result.totalElements());
+        assertEquals(3, result.totalPages());
+        verify(restaurantRepository).searchActiveRestaurants(
+                "Athens",
+                "Athens Municipality",
+                "Attica",
+                pageable
+        );
+        verify(publicRestaurantMapper).toResponse(restaurant);
+    }
+
+    @Test
     void throwsExceptionWhenRestaurantDoesNotExist() {
         UUID restaurantId = UUID.randomUUID();
 
@@ -238,6 +314,8 @@ class RestaurantServiceTest {
         UUID restaurantId = UUID.randomUUID();
         UpdateRestaurantRequest request = new UpdateRestaurantRequest(
                 "FastBite Piraeus",
+                null,
+                null,
                 null,
                 null,
                 null,

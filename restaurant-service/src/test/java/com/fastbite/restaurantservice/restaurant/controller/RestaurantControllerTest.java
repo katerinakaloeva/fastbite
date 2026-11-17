@@ -4,6 +4,8 @@ import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.PublicMenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicMenuItemResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicMenuResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
@@ -12,6 +14,7 @@ import com.fastbite.restaurantservice.restaurant.service.RestaurantService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -64,6 +67,8 @@ class RestaurantControllerTest {
                                   "description": "Fast food restaurant",
                                   "phone": "+30 210 123 4567",
                                   "city": "Athens",
+                                  "municipality": "Athens Municipality",
+                                  "region": "Attica",
                                   "postalCode": "10552"
                                 }
                                 """))
@@ -78,6 +83,8 @@ class RestaurantControllerTest {
                 "Fast food restaurant",
                 "+30 210 123 4567",
                 "Athens",
+                "Athens Municipality",
+                "Attica",
                 "10552"
         ));
     }
@@ -91,6 +98,8 @@ class RestaurantControllerTest {
                 null,
                 "+30 210 987 6543",
                 "Piraeus",
+                "Piraeus Municipality",
+                "Attica",
                 null,
                 null
         );
@@ -102,6 +111,8 @@ class RestaurantControllerTest {
                 null,
                 "+30 210 987 6543",
                 "Piraeus",
+                "Piraeus Municipality",
+                "Attica",
                 null,
                 null,
                 null
@@ -115,39 +126,116 @@ class RestaurantControllerTest {
                         .content("""
                                 {
                                   "phone": "+30 210 987 6543",
-                                  "city": "Piraeus"
+                                  "city": "Piraeus",
+                                  "municipality": "Piraeus Municipality",
+                                  "region": "Attica"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(restaurantId.toString()))
                 .andExpect(jsonPath("$.phone").value("+30 210 987 6543"))
-                .andExpect(jsonPath("$.city").value("Piraeus"));
+                .andExpect(jsonPath("$.city").value("Piraeus"))
+                .andExpect(jsonPath("$.municipality").value("Piraeus Municipality"))
+                .andExpect(jsonPath("$.region").value("Attica"));
 
         verify(restaurantService).updateRestaurant(restaurantId, request);
     }
 
     @Test
-    void returnsAllRestaurants() throws Exception {
-        RestaurantResponse firstRestaurant = restaurantResponse(
-                UUID.randomUUID(),
+    void searchesRestaurantsWithLocationFiltersAndPagination() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        PublicRestaurantSummaryResponse summary = new PublicRestaurantSummaryResponse(
+                restaurantId,
                 "FastBite Athens",
-                "Athens, Greece"
+                "Fast food restaurant",
+                "Athens",
+                "Athens Municipality",
+                "Attica"
         );
-        RestaurantResponse secondRestaurant = restaurantResponse(
-                UUID.randomUUID(),
-                "FastBite Thessaloniki",
-                "Thessaloniki, Greece"
+        PublicRestaurantPageResponse response = new PublicRestaurantPageResponse(
+                List.of(summary),
+                0,
+                20,
+                1,
+                1
+        );
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(restaurantService.searchPublicRestaurants(
+                "Athens",
+                "Athens Municipality",
+                "Attica",
+                pageable
+        )).thenReturn(response);
+
+        mockMvc.perform(get("/restaurants")
+                        .param("city", "Athens")
+                        .param("municipality", "Athens Municipality")
+                        .param("region", "Attica"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(restaurantId.toString()))
+                .andExpect(jsonPath("$.content[0].name").value("FastBite Athens"))
+                .andExpect(jsonPath("$.content[0].municipality")
+                        .value("Athens Municipality"))
+                .andExpect(jsonPath("$.content[0].region").value("Attica"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+
+        verify(restaurantService).searchPublicRestaurants(
+                "Athens",
+                "Athens Municipality",
+                "Attica",
+                pageable
+        );
+    }
+
+    @Test
+    void usesDefaultPageAndSizeWhenPaginationParametersAreOmitted() throws Exception {
+        PageRequest pageable = PageRequest.of(0, 20);
+        PublicRestaurantPageResponse response = new PublicRestaurantPageResponse(
+                List.of(),
+                0,
+                20,
+                0,
+                0
         );
 
-        when(restaurantService.getAllRestaurants())
-                .thenReturn(List.of(firstRestaurant, secondRestaurant));
+        when(restaurantService.searchPublicRestaurants(null, null, null, pageable))
+                .thenReturn(response);
 
         mockMvc.perform(get("/restaurants"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("FastBite Athens"))
-                .andExpect(jsonPath("$[1].name").value("FastBite Thessaloniki"));
+                .andExpect(jsonPath("$.content").isEmpty())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.totalPages").value(0));
 
-        verify(restaurantService).getAllRestaurants();
+        verify(restaurantService).searchPublicRestaurants(null, null, null, pageable);
+    }
+
+    @Test
+    void returnsBadRequestWhenPageSizeIsOutsideAllowedRange() throws Exception {
+        mockMvc.perform(get("/restaurants").param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        mockMvc.perform(get("/restaurants").param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
+    void returnsBadRequestWhenPageIsNegative() throws Exception {
+        mockMvc.perform(get("/restaurants").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(restaurantService);
     }
 
     @Test
@@ -235,13 +323,18 @@ class RestaurantControllerTest {
                         .content("""
                                 {
                                   "name": "",
-                                  "address": ""
+                                  "address": "",
+                                  "municipality": "",
+                                  "region": ""
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors.name").value("Restaurant name is required"))
-                .andExpect(jsonPath("$.fieldErrors.address").value("Restaurant address is required"));
+                .andExpect(jsonPath("$.fieldErrors.address").value("Restaurant address is required"))
+                .andExpect(jsonPath("$.fieldErrors.municipality")
+                        .value("Municipality is required"))
+                .andExpect(jsonPath("$.fieldErrors.region").value("Region is required"));
 
         verifyNoInteractions(restaurantService);
     }
@@ -342,6 +435,8 @@ class RestaurantControllerTest {
                 null,
                 null,
                 "+30 210 987 6543",
+                null,
+                null,
                 null,
                 null,
                 null

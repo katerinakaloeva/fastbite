@@ -26,6 +26,8 @@ class RestaurantTest {
                 "+30 210 987 6543",
                 null,
                 null,
+                null,
+                null,
                 false
         );
 
