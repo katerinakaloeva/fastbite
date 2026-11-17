@@ -1,13 +1,18 @@
 package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
+import com.fastbite.restaurantservice.restaurant.mapper.PublicRestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.mapper.RestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import com.fastbite.restaurantservice.restaurant.repository.RestaurantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +25,7 @@ public class RestaurantService {
 
     private final RestaurantRepository restaurantRepository;
     private final RestaurantMapper restaurantMapper;
+    private final PublicRestaurantMapper publicRestaurantMapper;
 
     @Transactional
     public RestaurantResponse createRestaurant(CreateRestaurantRequest request) {
@@ -56,5 +62,33 @@ public class RestaurantService {
                 .stream()
                 .map(restaurantMapper::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PublicRestaurantPageResponse searchPublicRestaurants(
+            String city,
+            String municipality,
+            String region,
+            Pageable pageable
+    ) {
+        Page<Restaurant> restaurants = restaurantRepository.searchActiveRestaurants(
+                city,
+                municipality,
+                region,
+                pageable
+        );
+
+        List<PublicRestaurantSummaryResponse> content = restaurants.getContent()
+                .stream()
+                .map(publicRestaurantMapper::toResponse)
+                .toList();
+
+        return new PublicRestaurantPageResponse(
+                content,
+                restaurants.getNumber(),
+                restaurants.getSize(),
+                restaurants.getTotalElements(),
+                restaurants.getTotalPages()
+        );
     }
 }

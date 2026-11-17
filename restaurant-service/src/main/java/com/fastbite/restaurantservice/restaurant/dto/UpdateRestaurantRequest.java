@@ -21,6 +21,14 @@ public record UpdateRestaurantRequest(
         @Size(max = 100)
         String city,
 
+        @Size(min = 1, max = 100)
+        @Pattern(regexp = ".*\\S.*", message = "Municipality must not be blank")
+        String municipality,
+
+        @Size(min = 1, max = 100)
+        @Pattern(regexp = ".*\\S.*", message = "Region must not be blank")
+        String region,
+
         @Size(max = 20)
         String postalCode,
 

@@ -2,6 +2,7 @@ package com.fastbite.restaurantservice.restaurant.controller;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.PublicMenuResponse;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.service.PublicMenuService;
@@ -11,7 +12,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +25,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -77,13 +83,28 @@ public class RestaurantController {
     }
 
     @Operation(
-            summary = "Get all restaurants",
-            description = "Returns all restaurants."
+            summary = "Search active restaurants",
+            description = "Returns active restaurants with optional location filters and pagination."
     )
-    @ApiResponse(responseCode = "200", description = "Restaurants returned successfully.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Restaurant page returned successfully."),
+            @ApiResponse(responseCode = "400", description = "Invalid pagination parameters.")
+    })
     @GetMapping
-    public ResponseEntity<List<RestaurantResponse>> getAllRestaurants() {
-        List<RestaurantResponse> response = restaurantService.getAllRestaurants();
+    public ResponseEntity<PublicRestaurantPageResponse> searchPublicRestaurants(
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String municipality,
+            @RequestParam(required = false) String region,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        PublicRestaurantPageResponse response = restaurantService.searchPublicRestaurants(
+                city,
+                municipality,
+                region,
+                pageable
+        );
 
         return ResponseEntity.ok(response);
     }
