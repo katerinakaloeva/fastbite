@@ -1,6 +1,7 @@
 package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantDetailsResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
@@ -41,6 +42,18 @@ public class RestaurantService {
                 .orElseThrow(() -> new RestaurantNotFoundException(restaurantId));
 
         return restaurantMapper.toResponse(restaurant);
+    }
+
+    @Transactional(readOnly = true)
+    public PublicRestaurantDetailsResponse getPublicRestaurantDetails(UUID restaurantId) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new RestaurantNotFoundException(restaurantId));
+
+        if (!restaurant.isActive()) {
+            throw new RestaurantNotFoundException(restaurantId);
+        }
+
+        return publicRestaurantMapper.toDetailsResponse(restaurant);
     }
 
     @Transactional

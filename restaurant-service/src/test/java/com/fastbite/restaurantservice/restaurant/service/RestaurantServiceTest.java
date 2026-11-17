@@ -1,6 +1,7 @@
 package com.fastbite.restaurantservice.restaurant.service;
 
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantDetailsResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
@@ -287,6 +288,61 @@ class RestaurantServiceTest {
                 pageable
         );
         verify(publicRestaurantMapper).toResponse(restaurant);
+    }
+
+    @Test
+    void returnsPublicRestaurantDetailsWhenRestaurantIsActive() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = Restaurant.builder()
+                .id(restaurantId)
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .build();
+        PublicRestaurantDetailsResponse expectedResponse = new PublicRestaurantDetailsResponse(
+                restaurantId,
+                "FastBite Athens",
+                "Fast food restaurant",
+                "Athens, Greece",
+                "+30 210 123 4567",
+                "Athens",
+                "Athens Municipality",
+                "Attica",
+                "10552"
+        );
+
+        when(restaurantRepository.findById(restaurantId))
+                .thenReturn(Optional.of(restaurant));
+        when(publicRestaurantMapper.toDetailsResponse(restaurant))
+                .thenReturn(expectedResponse);
+
+        PublicRestaurantDetailsResponse result = restaurantService
+                .getPublicRestaurantDetails(restaurantId);
+
+        assertSame(expectedResponse, result);
+        verify(restaurantRepository).findById(restaurantId);
+        verify(publicRestaurantMapper).toDetailsResponse(restaurant);
+    }
+
+    @Test
+    void throwsNotFoundWhenRestaurantIsInactiveForPublicDetails() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant inactiveRestaurant = Restaurant.builder()
+                .id(restaurantId)
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .active(false)
+                .build();
+
+        when(restaurantRepository.findById(restaurantId))
+                .thenReturn(Optional.of(inactiveRestaurant));
+
+        assertThrows(
+                RestaurantNotFoundException.class,
+                () -> restaurantService.getPublicRestaurantDetails(restaurantId)
+        );
+
+        verify(restaurantRepository).findById(restaurantId);
+        verifyNoInteractions(publicRestaurantMapper);
     }
 
     @Test
