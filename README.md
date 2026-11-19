@@ -1,5 +1,7 @@
 # FastBite
 
+[![CI](https://github.com/katerinakaloeva/fastbite/actions/workflows/ci.yml/badge.svg)](https://github.com/katerinakaloeva/fastbite/actions/workflows/ci.yml)
+
 FastBite is a backend for a simplified food ordering platform, built as independent Spring Boot microservices. Customers browse restaurants and menus, and place orders whose prices are validated against the restaurant catalogue.
 
 The project focuses on clear service boundaries: each service owns its business capability and its own PostgreSQL database, and services communicate only through their APIs.
@@ -131,6 +133,8 @@ From a service folder:
 
 Tests cover domain rules, services (Mockito), controllers and error responses (MockMvc), and the REST client. restaurant-service also has repository tests that run against PostgreSQL, so its database must be running for the full suite. See each service README for details.
 
+GitHub Actions runs the full test suite of every service, with a PostgreSQL container, on each pull request and on every push to main.
+
 ## Repository layout
 
 ```
@@ -151,7 +155,7 @@ Every service follows the same package convention: `config`, then a feature pack
 - Role- and ownership-based authorization for restaurant management
 - Order lookup and order status transitions
 - Docker Compose setup for all services and databases
-- Integration tests with Testcontainers and CI with GitHub Actions
+- Integration tests with Testcontainers
 - Kafka events with a transactional outbox (`OrderPlaced`) and a notification-service consumer
 - API gateway, delivery and mock payment services
 
