@@ -1,129 +1,158 @@
 # FastBite
 
-FastBite is a backend-focused portfolio and learning project for a simplified food ordering and delivery platform, inspired by services such as efood and Wolt.
+FastBite is a backend for a simplified food ordering platform, built as independent Spring Boot microservices. Customers browse restaurants and menus, and place orders whose prices are validated against the restaurant catalogue.
 
-The project is being developed incrementally to practise Java backend engineering: domain modelling, database migrations, REST APIs, security, testing, asynchronous events and clean service boundaries.
+The project focuses on clear service boundaries: each service owns its business capability and its own PostgreSQL database, and services communicate only through their APIs.
 
-> **Project status:** in progress. The repository contains independent restaurant-service and order-service applications. This repository does not contain a frontend yet.
+## Features
 
-## Why this project
+- **Restaurant catalogue:** create and update restaurants, menu categories and menu items.
+- **Public browsing:** search active restaurants by city, municipality or region with pagination, view restaurant details and view a restaurant's menu of available items.
+- **Guest checkout:** place an order without an account. Prices are read from the restaurant service, never from the client, and stored as snapshots on the order.
+- **Identity foundation:** users with multiple roles, PBKDF2 password hashing and registration validation.
+- **Consistent API errors:** every service returns the same error format with an error code, message, path and field errors.
+- **OpenAPI documentation:** Swagger UI for every service.
 
-The aim is not to create many services quickly. The aim is to build a small system where each service has a clear business responsibility, owns its own data and can be explained in an interview.
+## Architecture
 
-The project uses a hybrid communication model:
+```mermaid
+flowchart LR
+    Client[Client / Swagger UI]
 
-- **REST** for requests that need an immediate answer.
-- **Apache Kafka** for business events that other services can process asynchronously.
+    subgraph restaurant[restaurant-service :8080]
+        R[Catalogue API]
+    end
+    subgraph order[order-service :8081]
+        O[Checkout API]
+    end
+    subgraph identity[identity-service :8082]
+        I[Users and roles]
+    end
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the complete plan, service boundaries and development roadmap.
+    Client --> R
+    Client --> O
+    O -- "REST: GET /restaurants/{id}/menu" --> R
 
-## Current implementation
+    R --> RDB[(restaurant_db)]
+    O --> ODB[(order_db)]
+    I --> IDB[(identity_db)]
+```
 
-### Restaurant service foundation
+During checkout, order-service calls the restaurant-service public menu API to check which items are available and what they cost. It then stores the order with a snapshot of each item's name and price, so later menu changes never alter past orders.
 
-- Java 21, Spring Boot and Gradle project setup.
-- PostgreSQL 17 through Docker Compose.
-- Environment-variable based database configuration; `.env` is ignored by Git.
-- Flyway migration for the initial `restaurants` table.
-- JPA `Restaurant` entity and Spring Data repository.
-- JUnit integration-test foundation for repository persistence.
+The target architecture, including Kafka events, the transactional outbox and the remaining services, is described in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Restaurant and menu REST endpoints, public menu filtering and Swagger documentation are implemented.
+## Services
 
-### Order service
+| Service | Responsibility | Port | Database | Docs |
+| --- | --- | --- | --- | --- |
+| [restaurant-service](restaurant-service/README.md) | Restaurants, menu categories, menu items, public catalogue | 8080 | restaurant_db | `/swagger-ui/index.html` |
+| [order-service](order-service/README.md) | Guest checkout, order items, price snapshots, totals | 8081 | order_db | `/swagger-ui/index.html` |
+| [identity-service](identity-service/README.md) | Users, roles, password hashing | 8082 | identity_db | Register and login endpoints in progress |
 
-Guest checkout is implemented in the independent [order-service](order-service/README.md), with its own Gradle build and database configuration. It calls the restaurant public menu API through REST to validate products and read prices, then stores order snapshots in its own database.
+## Design decisions
 
-Isolated Mockito, WebMvc and HTTP-client tests can run without Docker or PostgreSQL. Live database migration and end-to-end execution are not yet verified.
+- **Database per service.** Services never share JPA entities, repositories, tables or foreign keys. Order-service stores `restaurantId` and `menuItemId` as plain UUID references.
+- **Server-side pricing.** The client sends only item IDs and quantities. Order-service fetches current prices and availability from restaurant-service, so a client cannot set its own price.
+- **Price snapshots.** Each order item keeps the name and unit price at the time of the order.
+- **Fault handling for remote calls.** The REST client uses connection and read timeouts, validates the response and returns `503 Service Unavailable` when restaurant-service cannot be reached or returns invalid data.
+- **Schema owned by Flyway.** Hibernate runs with `ddl-auto=validate`; every schema change is a versioned migration.
+- **DTOs at the API boundary.** Entities are never exposed. Sensitive fields, such as customer phone numbers and password hashes, are excluded from responses.
 
-## Services and roadmap
+## Tech stack
 
-| Service | Responsibility | Database |
-| --- | --- | --- |
-| `restaurant-service` | Restaurants, menus and item availability | `restaurant_db` |
-| `identity-service` | Users, roles, login and JWT tokens | `identity_db` |
-| `order-service` | Orders, order items, totals and state transitions | `order_db` |
-| `delivery-service` | Driver assignments and delivery status | `delivery_db` |
-| `payment-service` | Mock payments and refunds | `payment_db` |
-| `notification-service` | Notification records and event-driven notifications | `notification_db` when persistence is needed |
+Java 21 · Spring Boot · Spring Web (RestClient) · Spring Data JPA / Hibernate · PostgreSQL · Flyway · Bean Validation · Spring Security Crypto · springdoc OpenAPI · JUnit 5 · Mockito · MockMvc · Docker Compose · Gradle
 
-Each service owns its data. Services must not query another service's database directly.
-
-## Technology stack
-
-- Java 21
-- Spring Boot and Gradle
-- PostgreSQL
-- Spring Data JPA / Hibernate
-- Flyway
-- Docker Compose
-- REST/JSON and Spring `RestClient`
-- Apache Kafka and Spring Kafka (from Phase 3)
-- Spring Security and JWT (from Phase 2)
-- OpenAPI / Swagger (during the restaurant API phase)
-- JUnit 5, Mockito and Testcontainers
-- GitHub Actions (later quality and CI phase)
-
-## Local setup
+## Getting started
 
 ### Prerequisites
 
 - Java 21
-- Docker Desktop, only when you want to run the local PostgreSQL database
+- Docker Desktop
+- Each service has its own Gradle Wrapper, so Gradle does not need to be installed.
 
-### Start PostgreSQL
+### 1. Start the restaurant database
 
-1. Create your private local environment file from the example:
+Create a local environment file from the example and set a password:
 
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-2. Choose a local value for `POSTGRES_PASSWORD` in `.env`. Never commit this file.
-
-3. Start only the restaurant database:
-
-   ```powershell
-   docker compose up -d restaurant-db
-   ```
-
-4. Stop it when you are finished to save memory:
-
-   ```powershell
-   docker compose stop restaurant-db
-   ```
-
-### Run the Spring Boot service locally
-
-The service reads database settings from environment variables. Set the values from your local `.env` file in your IDE run configuration, then run `RestaurantServiceApplication`.
-
-The same variables are needed for database-backed integration tests:
-
-```text
-POSTGRES_DB
-POSTGRES_USER
-POSTGRES_PASSWORD
-POSTGRES_PORT
+```bash
+cp .env.example .env            # Windows PowerShell: Copy-Item .env.example .env
+docker compose up -d restaurant-db
 ```
 
-## Development principles
+`.env` is ignored by Git. Spring Boot does not read it automatically, so pass the same values to the application as environment variables (for example in the IDE run configuration).
 
-- Build one small vertical slice at a time.
-- Use Flyway migrations; do not use Hibernate schema auto-update.
-- Keep credentials and signing keys out of Git.
-- Do not expose JPA entities directly from public APIs; use DTOs.
-- Validate requests and return consistent API errors.
-- Enforce both role-based permissions and resource ownership.
-- Use small feature branches and Pull Requests.
-- Add infrastructure only when a real use case exists.
+### 2. Provide databases for the other services
 
-## Current limitations
+order-service and identity-service each expect their own database (`order_db` and `identity_db`). They can run on the same local PostgreSQL server as separate databases. The required variables are listed in each service README.
 
-- Restaurant/menu and guest-order REST endpoints are implemented; live cross-service/database execution remains to be verified.
-- No authentication or authorization yet.
-- Kafka, gateway, delivery, payment and notifications are planned phases.
-- Payments will be simulated; no real card data will be stored.
+### 3. Run the services
 
-## License
+From each service folder:
 
-This project is for learning and portfolio purposes.
+```bash
+./gradlew bootRun               # Windows: .\gradlew.bat bootRun
+```
+
+Start restaurant-service before placing orders, because order-service calls it during checkout.
+
+### 4. Try it
+
+Open Swagger UI:
+
+- Restaurant service: http://localhost:8080/swagger-ui/index.html
+- Order service: http://localhost:8081/swagger-ui/index.html
+
+A typical flow is: create a restaurant, create a menu category, add menu items, then place an order:
+
+```http
+POST http://localhost:8081/restaurants/{restaurantId}/orders
+Content-Type: application/json
+
+{
+  "customerName": "Maria Papadopoulou",
+  "customerPhone": "6900000000",
+  "deliveryAddress": "Ermou 10, Athens",
+  "items": [
+    { "menuItemId": "<menu item UUID>", "quantity": 2 }
+  ]
+}
+```
+
+The response contains the order ID, status, item snapshots, total amount and currency.
+
+## Running tests
+
+From a service folder:
+
+```bash
+./gradlew test                  # Windows: .\gradlew.bat test
+```
+
+Tests cover domain rules, services (Mockito), controllers and error responses (MockMvc), and the REST client. restaurant-service also has repository tests that run against PostgreSQL, so its database must be running for the full suite. See each service README for details.
+
+## Repository layout
+
+```
+fastbite/
+├── ARCHITECTURE.md        # Target architecture, roadmap, conventions
+├── docker-compose.yml     # Local PostgreSQL for restaurant-service
+├── .env.example           # Example local database settings
+├── restaurant-service/
+├── order-service/
+└── identity-service/
+```
+
+Every service follows the same package convention: `config`, then a feature package with `controller`, `dto`, `exception`, `mapper`, `model`, `repository`, `service` and, where needed, `client`.
+
+## Roadmap
+
+- Registration, login and JWT authentication in identity-service
+- Role- and ownership-based authorization for restaurant management
+- Order lookup and order status transitions
+- Docker Compose setup for all services and databases
+- Integration tests with Testcontainers and CI with GitHub Actions
+- Kafka events with a transactional outbox (`OrderPlaced`) and a notification-service consumer
+- API gateway, delivery and mock payment services
+
+Payments will always be simulated. This is a learning and portfolio project.
