@@ -21,7 +21,12 @@ Registration service/controller and login/JWT are the next implementation steps.
 
 ## Endpoints
 
-Register and login endpoints are introduced with their service/controller features.
+Planned endpoints, added with the registration and login features:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | /auth/register | Register a customer account |
+| POST | /auth/login | Authenticate and receive a JWT access token |
 
 ## Configuration
 
@@ -42,10 +47,11 @@ Provide database settings through the process environment or IDE run configurati
 
 ## Build and tests
 
-From this folder on Windows:
+From this folder:
 
-    .\gradlew.bat compileJava
-    .\gradlew.bat test
+    ./gradlew test          # Windows: .\gradlew.bat test
+
+The tests use MockMvc to check the error responses: 409 for an existing email, 500 for a missing default role, field-level validation errors and malformed JSON.
 
 Flyway owns the schema definition and Hibernate validates entity mappings when the application starts.
 

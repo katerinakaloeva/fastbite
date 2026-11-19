@@ -4,7 +4,7 @@
 
 FastBite is a portfolio-ready backend project for a simplified food ordering and delivery platform. It is intentionally developed in small phases so that each architectural decision can be understood, tested and explained.
 
-The initial scope is backend only. Restaurant/menu and guest-order REST APIs with Swagger are implemented in two independent services. A frontend comes after the backend services are established.
+The initial scope is backend only. Restaurant/menu and guest-order REST APIs with Swagger are implemented in two independent services, and a third service, identity-service, has its user and role foundation in place. A frontend comes after the backend services are established.
 
 Out of scope for the MVP:
 
@@ -58,14 +58,14 @@ The diagram shows the target architecture. Currently, restaurant-service and ord
 
 ## 4. Services and responsibilities
 
-| Service | Owns | Responsibilities | Planned phase |
-| --- | --- | --- | --- |
-| `restaurant-service` | Restaurants, menu categories, menu items | Public catalogue, owner-managed restaurants and item availability | 1 |
-| `identity-service` | Users, roles, password hashes, refresh tokens | Register, login, refresh/logout and JWT issuance | 2 |
-| `order-service` | Orders, order items, status history | Checkout, price snapshots, totals and valid order transitions | 3 |
-| `delivery-service` | Drivers, deliveries, assignments | Driver availability, assignment and delivery status | 4 |
-| `payment-service` | Mock payment records and refunds | Simulated payment outcomes only | 5 |
-| `notification-service` | Notification records when persistence is needed | Consume events and create/log notifications | 6 |
+| Service | Owns | Responsibilities | Phase | Status |
+| --- | --- | --- | --- | --- |
+| `restaurant-service` | Restaurants, menu categories, menu items | Public catalogue, owner-managed restaurants and item availability | 1 | Implemented; owner authorization planned |
+| `identity-service` | Users, roles, password hashes, refresh tokens | Register, login, refresh/logout and JWT issuance | 2 | In progress: user/role model, password hashing, error handling |
+| `order-service` | Orders, order items, status history | Checkout, price snapshots, totals and valid order transitions | 3 | Guest checkout implemented; status transitions and events planned |
+| `delivery-service` | Drivers, deliveries, assignments | Driver availability, assignment and delivery status | 4 | Planned |
+| `payment-service` | Mock payment records and refunds | Simulated payment outcomes only | 5 | Planned |
+| `notification-service` | Notification records when persistence is needed | Consume events and create/log notifications | 6 | Planned |
 
 ### Identity and authorization
 
@@ -154,16 +154,14 @@ erDiagram
     RESTAURANTS ||--o{ OPENING_HOURS : schedules
 ```
 
-Planned tables:
+| Table | Purpose | Status |
+| --- | --- | --- |
+| `restaurants` | Restaurant details, address, location (city, municipality, region) and active state | Implemented; owner reference planned with authorization |
+| `menu_categories` | Categories belonging to one restaurant, with display order and active state | Implemented |
+| `menu_items` | Menu items with price, currency and availability | Implemented |
+| `opening_hours` | Opening schedule | Planned |
 
-| Table | Purpose |
-| --- | --- |
-| `restaurants` | Restaurant details, owner reference, address and active state |
-| `menu_categories` | Categories belonging to one restaurant |
-| `menu_items` | Available menu items, price and currency |
-| `opening_hours` | Opening schedule; implemented later in the restaurant phase |
-
-The current first migration creates the initial `restaurants` table. Later changes are introduced through new Flyway migrations rather than editing an already-applied migration.
+The schema is created and evolved by Flyway migrations V1–V5. Changes are always introduced through new migrations rather than by editing an already-applied migration.
 
 ## 8. REST API plan
 
@@ -172,7 +170,7 @@ The target API plan uses /api/v1. Current controllers use unversioned paths, inc
 Planned restaurant endpoints:
 
 | Method | Endpoint | Access | Description |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | `GET` | `/api/v1/restaurants` | Public | Paged and filtered restaurant search |
 | `GET` | `/api/v1/restaurants/{restaurantId}` | Public | Restaurant details |
 | `GET` | `/api/v1/restaurants/{restaurantId}/menu` | Public | Categories and available menu items |
@@ -195,15 +193,17 @@ Current errors use ApiError with timestamp, status, code, message, path and fiel
 
 ## 9. Development roadmap
 
-| Phase | Scope | Main outcomes |
-| --- | --- | --- |
-| 1 | Restaurant Service | REST API, PostgreSQL, Flyway, Swagger and tests |
-| 2 | Identity Service | Spring Security, JWT, authentication and authorization |
-| 3 | Order Service + Kafka | Orders, order items, Kafka producer/consumer and event publishing |
-| 4 | Delivery Service | Delivery management and Kafka events |
-| 5 | Payment Service | Mock payments and Kafka events |
-| 6 | Notification Service | Kafka consumers and notifications |
-| 7 | Quality and delivery | CI/CD, monitoring, integration tests and improvements |
+| Phase | Scope | Main outcomes | Status |
+| --- | --- | --- | --- |
+| 1 | Restaurant Service | REST API, PostgreSQL, Flyway, Swagger and tests | Done |
+| 2 | Identity Service | Spring Security, JWT, authentication and authorization | In progress |
+| 3 | Order Service + Kafka | Orders, order items, Kafka producer/consumer and event publishing | Guest checkout done; Kafka planned |
+| 4 | Delivery Service | Delivery management and Kafka events | Planned |
+| 5 | Payment Service | Mock payments and Kafka events | Planned |
+| 6 | Notification Service | Kafka consumers and notifications | Planned |
+| 7 | Quality and delivery | CI/CD, monitoring, integration tests and improvements | Planned |
+
+Guest checkout was built before authentication so that the REST communication between order-service and restaurant-service could be designed early. Orders will be linked to authenticated customers once identity-service issues JWTs.
 
 ## 10. Technology stack
 
@@ -235,14 +235,15 @@ Testcontainers is planned for realistic PostgreSQL and Kafka integration tests w
 
 ## 12. Current status
 
-Two independently buildable Spring Boot applications are implemented:
+Three independently buildable Spring Boot applications exist:
 
 | Service | Implemented responsibility | Owned database |
 | --- | --- | --- |
 | restaurant-service | Restaurants, menu categories, menu items and the public catalogue | restaurant_db |
 | order-service | Guest order creation, item snapshots and total calculation | order_db |
+| identity-service | User and role model, PBKDF2 password encoder, registration validation and error handling | identity_db |
 
-Each service has its own Gradle build/wrapper, application class, database configuration and Flyway migrations. Restaurant-service owns its V1-V5 catalogue migrations. Order-service owns V1__create_orders.sql for orders and order_items.
+Each service has its own Gradle build/wrapper, application class, database configuration and Flyway migrations. Restaurant-service owns its V1–V5 catalogue migrations, order-service owns `V1__create_orders.sql` for orders and order_items, and identity-service owns `V1__create_users_and_roles.sql`, which also inserts the four roles.
 
 ### Implemented checkout flow
 
@@ -253,22 +254,18 @@ Each service has its own Gradle build/wrapper, application class, database confi
 
 Order.restaurantId and OrderItem.menuItemId are external UUID references. Order-service does not import restaurant-service entities or repositories, query restaurant_db, or define foreign keys to catalogue tables. The OrderItem-to-Order relationship and foreign key are local to order_db.
 
-### Verification and remaining work
+### Build and tests
 
-- compileJava passed for both services.
-- The order-service isolated service, controller and HTTP-client tests passed. Restaurant-service Mockito service and WebMvc controller tests also passed.
-- HTTP-client tests use in-memory responses. No Docker or PostgreSQL was run for these checks.
-- Live Flyway migrations, persistence and end-to-end execution with both applications and their databases remain unverified.
-- Guest checkout currently precedes the planned identity phase. The roadmap above remains the target plan: identity/JWT, Kafka, delivery, mock payment, notifications and the frontend are future work.
+Build and test commands are documented in the [root README](README.md) and in each service README. Identity/JWT, Kafka, delivery, mock payment, notifications and the frontend follow the roadmap in section 9.
 
 ## 13. Common package structure
 
-Both services follow the same convention under their application package:
+All services follow the same convention under their application package:
 
 | Folder | Responsibility |
 | --- | --- |
-| config | Spring configuration, including OpenAPI and HTTP-client configuration where needed |
-| restaurant or order | The service's business feature |
+| config | Spring configuration, including OpenAPI, HTTP-client and password-encoder configuration where needed |
+| restaurant, order or identity | The service's business feature |
 | feature/controller | HTTP endpoints |
 | feature/dto | Request/response data, including contracts consumed from another API |
 | feature/exception | ApplicationException, ErrorCode, ApiError, GlobalExceptionHandler and concrete exceptions |
@@ -278,6 +275,6 @@ Both services follow the same convention under their application package:
 | feature/service | Use-case coordination and business checks |
 | feature/client | Calls to another service, when required; currently order/client |
 
-Each application class sits at the root of its application package. Tests mirror production packages. Both services keep application.properties and db/migration under src/main/resources.
+Each application class sits at the root of its application package. Tests mirror production packages. Every service keeps application.properties and db/migration under src/main/resources.
 
 Keep this convention for new work. Add a folder only when the service has a responsibility that needs it; restaurant-service does not need an empty client folder.
