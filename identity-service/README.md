@@ -6,7 +6,13 @@ Owns the user and role persistence model and authentication configuration in ide
 
 ## Current status
 
-The registration foundation includes:
+Customer registration is implemented:
+
+- POST /auth/register creates a customer account. The email is trimmed and lower-cased, so the same address cannot be registered twice with different casing.
+- The CUSTOMER role is always assigned by the backend; clients cannot choose their role.
+- Passwords are hashed before they are stored, and responses never contain passwords or password hashes.
+
+The service is built on:
 
 - An independent Java 21 / Spring Boot Gradle project and IdentityServiceApplication.
 - User and Role entities, with multiple roles per user through user_roles.
@@ -17,16 +23,22 @@ The registration foundation includes:
 - A PBKDF2-HMAC-SHA256 PasswordEncoder with a random 16-byte salt and 600,000 iterations.
 - ApplicationException, ErrorCode, ApiError and GlobalExceptionHandler for consistent application errors.
 
-Registration service/controller and login/JWT are the next implementation steps.
+Login and JWT issuance are the next implementation steps.
 
 ## Endpoints
 
-Planned endpoints, added with the registration and login features:
+| Method | Path | Purpose | Status |
+| --- | --- | --- | --- |
+| POST | /auth/register | Register a customer account and return 201 with UserResponse | Implemented |
+| POST | /auth/login | Authenticate and receive a JWT access token | Planned |
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | /auth/register | Register a customer account |
-| POST | /auth/login | Authenticate and receive a JWT access token |
+Registration errors use the common ApiError format:
+
+- 400: VALIDATION_FAILED for missing or invalid fields, or malformed JSON.
+- 409: EMAIL_ALREADY_EXISTS when the email is already registered.
+- 500: DEFAULT_ROLE_NOT_FOUND when the CUSTOMER role is missing from the database.
+
+When the application is running, Swagger UI is available at /swagger-ui/index.html.
 
 ## Configuration
 
@@ -51,18 +63,16 @@ From this folder:
 
     ./gradlew test          # Windows: .\gradlew.bat test
 
-The tests use MockMvc to check the error responses: 409 for an existing email, 500 for a missing default role, field-level validation errors and malformed JSON.
+Mockito service tests cover email normalization, password hashing, the default role and duplicate emails. WebMvc controller tests cover the 201, 400 and 409 responses and check that no password is returned. MockMvc tests for GlobalExceptionHandler cover the error format.
 
 Flyway owns the schema definition and Hibernate validates entity mappings when the application starts.
 
 ## Package structure
 
-The application entry point is in com.fastbite.identityservice. Password encoder configuration lives in config. The identity feature groups model, repository, dto, mapper and exception packages, following the same convention as restaurant-service and order-service.
-
-Controller and service packages are introduced with their corresponding features.
+The application entry point is in com.fastbite.identityservice. Password encoder configuration lives in config. The identity feature groups controller, dto, exception, mapper, model, repository and service packages, following the same convention as restaurant-service and order-service.
 
 ## Next scope
 
-Complete the registration service and controller. Assign CUSTOMER through the backend, hash passwords before persistence and return only the public UserResponse fields. Follow with login and JWT.
+Add login with JWT access tokens, then use the tokens in restaurant-service and order-service for role- and ownership-based authorization.
 
 See the [project README](../README.md) and [architecture](../ARCHITECTURE.md) for the system context.
