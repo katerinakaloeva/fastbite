@@ -61,7 +61,7 @@ The diagram shows the target architecture. Currently, restaurant-service and ord
 | Service | Owns | Responsibilities | Phase | Status |
 | --- | --- | --- | --- | --- |
 | `restaurant-service` | Restaurants, menu categories, menu items | Public catalogue, owner-managed restaurants and item availability | 1 | Implemented; owner authorization planned |
-| `identity-service` | Users, roles, password hashes, refresh tokens | Register, login, refresh/logout and JWT issuance | 2 | In progress: user/role model, password hashing, error handling |
+| `identity-service` | Users, roles, password hashes, refresh tokens | Register, login, refresh/logout and JWT issuance | 2 | In progress: customer registration implemented; login and JWT next |
 | `order-service` | Orders, order items, status history | Checkout, price snapshots, totals and valid order transitions | 3 | Guest checkout implemented; status transitions and events planned |
 | `delivery-service` | Drivers, deliveries, assignments | Driver availability, assignment and delivery status | 4 | Planned |
 | `payment-service` | Mock payment records and refunds | Simulated payment outcomes only | 5 | Planned |
