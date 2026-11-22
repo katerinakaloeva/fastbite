@@ -1,9 +1,12 @@
 package com.fastbite.identityservice.identity.service;
 
+import com.fastbite.identityservice.identity.dto.LoginRequest;
+import com.fastbite.identityservice.identity.dto.LoginResponse;
 import com.fastbite.identityservice.identity.dto.RegisterRequest;
 import com.fastbite.identityservice.identity.dto.UserResponse;
 import com.fastbite.identityservice.identity.exception.DefaultRoleNotFoundException;
 import com.fastbite.identityservice.identity.exception.EmailAlreadyExistsException;
+import com.fastbite.identityservice.identity.exception.InvalidCredentialsException;
 import com.fastbite.identityservice.identity.mapper.UserMapper;
 import com.fastbite.identityservice.identity.model.Role;
 import com.fastbite.identityservice.identity.model.User;
@@ -26,6 +29,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final JwtService jwtService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -50,5 +54,21 @@ public class UserService {
         User savedUser = userRepository.saveAndFlush(user);
 
         return userMapper.toResponse(savedUser);
+    }
+
+    @Transactional(readOnly = true)
+    public LoginResponse login(LoginRequest request) {
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException());
+
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        String token = jwtService.generateToken(user);
+
+        return new LoginResponse(token, "Bearer", jwtService.getExpirationSeconds());
     }
 }

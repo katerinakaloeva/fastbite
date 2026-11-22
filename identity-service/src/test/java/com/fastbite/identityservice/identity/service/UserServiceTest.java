@@ -1,9 +1,12 @@
 package com.fastbite.identityservice.identity.service;
 
+import com.fastbite.identityservice.identity.dto.LoginRequest;
+import com.fastbite.identityservice.identity.dto.LoginResponse;
 import com.fastbite.identityservice.identity.dto.RegisterRequest;
 import com.fastbite.identityservice.identity.dto.UserResponse;
 import com.fastbite.identityservice.identity.exception.DefaultRoleNotFoundException;
 import com.fastbite.identityservice.identity.exception.EmailAlreadyExistsException;
+import com.fastbite.identityservice.identity.exception.InvalidCredentialsException;
 import com.fastbite.identityservice.identity.mapper.UserMapper;
 import com.fastbite.identityservice.identity.model.Role;
 import com.fastbite.identityservice.identity.model.User;
@@ -17,7 +20,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,11 +43,14 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private JwtService jwtService;
+
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, roleRepository, passwordEncoder, new UserMapper());
+        userService = new UserService(userRepository, roleRepository, passwordEncoder, new UserMapper(), jwtService);
     }
 
     @Test
@@ -93,5 +101,60 @@ class UserServiceTest {
                 .isInstanceOf(DefaultRoleNotFoundException.class);
 
         verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void returnsBearerTokenWhenCredentialsAreCorrect() {
+        User user = existingUser();
+        LoginRequest request = new LoginRequest(" Maria@Example.COM ", "correct-horse-battery");
+
+        when(userRepository.findByEmail("maria@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct-horse-battery", "hashed-password")).thenReturn(true);
+        when(jwtService.generateToken(user)).thenReturn("signed-jwt");
+        when(jwtService.getExpirationSeconds()).thenReturn(900L);
+
+        LoginResponse response = userService.login(request);
+
+        assertThat(response.accessToken()).isEqualTo("signed-jwt");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(900L);
+    }
+
+    @Test
+    void rejectsWrongPasswordWithoutIssuingToken() {
+        User user = existingUser();
+        LoginRequest request = new LoginRequest("maria@example.com", "wrong-password");
+
+        when(userRepository.findByEmail("maria@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "hashed-password")).thenReturn(false);
+
+        assertThatThrownBy(() -> userService.login(request))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid email or password");
+
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
+    void rejectsUnknownEmailWithSameErrorAsWrongPassword() {
+        LoginRequest request = new LoginRequest("nobody@example.com", "any-password");
+
+        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.login(request))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid email or password");
+
+        verify(passwordEncoder, never()).matches(any(), any());
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    private User existingUser() {
+        return User.builder()
+                .fullName("Maria Papadopoulou")
+                .email("maria@example.com")
+                .passwordHash("hashed-password")
+                .roles(new HashSet<>(Set.of(Role.builder().name("CUSTOMER").build())))
+                .build();
     }
 }

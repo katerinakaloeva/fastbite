@@ -11,7 +11,7 @@ The project focuses on clear service boundaries: each service owns its business 
 - **Restaurant catalogue:** create and update restaurants, menu categories and menu items.
 - **Public browsing:** search active restaurants by city, municipality or region with pagination, view restaurant details and view a restaurant's menu of available items.
 - **Guest checkout:** place an order without an account. Prices are read from the restaurant service, never from the client, and stored as snapshots on the order.
-- **Customer registration:** `POST /auth/register` creates a customer account with a PBKDF2-hashed password. The role is always assigned by the server, and duplicate emails are rejected regardless of letter case.
+- **Customer registration:** `POST /auth/register` creates a customer account with a PBKDF2-hashed password. The role is always assigned by the server, and duplicate emails are rejected regardless of letter case. `POST /auth/login` returns a JWT access token.
 - **Consistent API errors:** every service returns the same error format with an error code, message, path and field errors.
 - **OpenAPI documentation:** Swagger UI for every service.
 
@@ -51,7 +51,7 @@ The target architecture, including Kafka events, the transactional outbox and th
 | --- | --- | --- | --- | --- |
 | [restaurant-service](restaurant-service/README.md) | Restaurants, menu categories, menu items, public catalogue | 8080 | restaurant_db | `/swagger-ui/index.html` |
 | [order-service](order-service/README.md) | Guest checkout, order items, price snapshots, totals | 8081 | order_db | `/swagger-ui/index.html` |
-| [identity-service](identity-service/README.md) | Users, roles, registration; login and JWT next | 8082 | identity_db | `/swagger-ui/index.html` |
+| [identity-service](identity-service/README.md) | Users, roles, registration, login with JWT | 8082 | identity_db | `/swagger-ui/index.html` |
 
 ## Design decisions
 
@@ -152,7 +152,7 @@ Every service follows the same package convention: `config`, then a feature pack
 
 ## Roadmap
 
-- Login and JWT authentication in identity-service
+- JWT validation in restaurant-service and order-service
 - Role- and ownership-based authorization for restaurant management
 - Order lookup and order status transitions
 - Docker Compose setup for all services and databases

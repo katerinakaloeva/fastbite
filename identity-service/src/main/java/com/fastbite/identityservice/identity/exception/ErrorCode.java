@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
 
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT),
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED),
     DEFAULT_ROLE_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR),
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);

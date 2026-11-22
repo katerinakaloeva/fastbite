@@ -1,5 +1,7 @@
 package com.fastbite.identityservice.identity.controller;
 
+import com.fastbite.identityservice.identity.dto.LoginRequest;
+import com.fastbite.identityservice.identity.dto.LoginResponse;
 import com.fastbite.identityservice.identity.dto.RegisterRequest;
 import com.fastbite.identityservice.identity.dto.UserResponse;
 import com.fastbite.identityservice.identity.service.UserService;
@@ -41,5 +43,21 @@ public class AuthController {
         UserResponse response = userService.register(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Operation(
+            summary = "Log in",
+            description = "Checks the email and password and returns a JWT access token."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Login successful, token returned."),
+            @ApiResponse(responseCode = "400", description = "Email or password is missing."),
+            @ApiResponse(responseCode = "401", description = "Invalid email or password.")
+    })
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        LoginResponse response = userService.login(request);
+
+        return ResponseEntity.ok(response);
     }
 }
