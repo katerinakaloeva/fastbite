@@ -1,12 +1,17 @@
 package com.fastbite.identityservice.identity.controller;
 
+import com.fastbite.identityservice.config.SecurityConfig;
+import com.fastbite.identityservice.identity.dto.LoginRequest;
+import com.fastbite.identityservice.identity.dto.LoginResponse;
 import com.fastbite.identityservice.identity.dto.RegisterRequest;
 import com.fastbite.identityservice.identity.dto.UserResponse;
 import com.fastbite.identityservice.identity.exception.EmailAlreadyExistsException;
+import com.fastbite.identityservice.identity.exception.InvalidCredentialsException;
 import com.fastbite.identityservice.identity.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
+@Import(SecurityConfig.class)
 class AuthControllerTest {
 
     private static final String VALID_REQUEST = """
@@ -75,6 +81,51 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"fullName":"","email":"not-an-email","password":"short"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.email").exists())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    void returnsTokenWhenLoginSucceeds() throws Exception {
+        when(userService.login(any(LoginRequest.class)))
+                .thenReturn(new LoginResponse("signed-jwt", "Bearer", 900));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"maria@example.com","password":"correct-horse-battery"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("signed-jwt"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(900));
+    }
+
+    @Test
+    void returnsUnauthorizedWhenCredentialsAreInvalid() throws Exception {
+        when(userService.login(any(LoginRequest.class))).thenThrow(new InvalidCredentialsException());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"maria@example.com","password":"wrong-password"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.message").value("Invalid email or password"));
+    }
+
+    @Test
+    void rejectsLoginWithMissingFieldsWithoutCallingService() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"","password":""}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
