@@ -48,3 +48,4 @@ jobs:
           POSTGRES_DB: restaurant_db
           POSTGRES_USER: restaurant_user
           POSTGRES_PASSWORD: ci_password
+          JWT_SECRET: ci-test-secret-that-is-at-least-32-characters

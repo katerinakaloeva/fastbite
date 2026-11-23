@@ -57,6 +57,9 @@ public class Restaurant {
     @Column(name = "postal_code", length = 20)
     private String postalCode;
 
+    @Column(name = "owner_id")
+    private UUID ownerId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -111,5 +114,9 @@ public class Restaurant {
         if (active != null) {
             this.active = active;
         }
+    }
+
+    public boolean isOwnedBy(UUID userId) {
+        return ownerId != null && ownerId.equals(userId);
     }
 }

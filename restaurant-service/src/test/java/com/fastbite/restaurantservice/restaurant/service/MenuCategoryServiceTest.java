@@ -4,6 +4,7 @@ import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
+import com.fastbite.restaurantservice.restaurant.exception.RestaurantAccessDeniedException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.MenuCategoryMapper;
 import com.fastbite.restaurantservice.restaurant.model.MenuCategory;
@@ -20,6 +21,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.ADMIN;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OTHER_OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -61,7 +65,7 @@ class MenuCategoryServiceTest {
         when(menuCategoryRepository.save(categoryToSave)).thenReturn(savedCategory);
         when(menuCategoryMapper.toResponse(savedCategory)).thenReturn(expectedResponse);
 
-        MenuCategoryResponse result = menuCategoryService.createMenuCategory(restaurantId, request);
+        MenuCategoryResponse result = menuCategoryService.createMenuCategory(restaurantId, request, ADMIN);
 
         assertSame(expectedResponse, result);
         verify(restaurantRepository).findById(restaurantId);
@@ -122,7 +126,7 @@ class MenuCategoryServiceTest {
         MenuCategoryResponse result = menuCategoryService.updateMenuCategory(
                 restaurantId,
                 menuCategory.getId(),
-                request
+                request, ADMIN
         );
 
         assertSame(expectedResponse, result);
@@ -159,7 +163,7 @@ class MenuCategoryServiceTest {
                 () -> menuCategoryService.updateMenuCategory(
                         restaurantId,
                         UUID.randomUUID(),
-                        request
+                        request, ADMIN
                 )
         );
 
@@ -179,7 +183,7 @@ class MenuCategoryServiceTest {
 
         assertThrows(
                 MenuCategoryNotFoundException.class,
-                () -> menuCategoryService.updateMenuCategory(restaurantId, categoryId, request)
+                () -> menuCategoryService.updateMenuCategory(restaurantId, categoryId, request, ADMIN)
         );
 
         verify(restaurantRepository).findById(restaurantId);
@@ -204,7 +208,7 @@ class MenuCategoryServiceTest {
                 () -> menuCategoryService.updateMenuCategory(
                         restaurantId,
                         menuCategory.getId(),
-                        request
+                        request, ADMIN
                 )
         );
 
@@ -240,5 +244,26 @@ class MenuCategoryServiceTest {
                 null,
                 null
         );
+    }
+
+    @Test
+    void rejectsCategoryCreationForRestaurantOwnedByAnotherUser() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = Restaurant.builder()
+                .id(restaurantId)
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .ownerId(OWNER_ID)
+                .build();
+        CreateMenuCategoryRequest request = new CreateMenuCategoryRequest("Burgers", null);
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(
+                RestaurantAccessDeniedException.class,
+                () -> menuCategoryService.createMenuCategory(restaurantId, request, OTHER_OWNER)
+        );
+
+        verifyNoInteractions(menuCategoryRepository, menuCategoryMapper);
     }
 }

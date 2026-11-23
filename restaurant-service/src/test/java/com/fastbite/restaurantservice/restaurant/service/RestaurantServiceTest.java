@@ -6,6 +6,7 @@ import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageRespons
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.exception.RestaurantAccessDeniedException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.PublicRestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.mapper.RestaurantMapper;
@@ -24,9 +25,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.ADMIN;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OTHER_OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -95,14 +101,14 @@ class RestaurantServiceTest {
                 null
         );
 
-        when(restaurantMapper.toEntity(request)).thenReturn(restaurantToSave);
+        when(restaurantMapper.toEntity(request, OWNER_ID)).thenReturn(restaurantToSave);
         when(restaurantRepository.save(restaurantToSave)).thenReturn(savedRestaurant);
         when(restaurantMapper.toResponse(savedRestaurant)).thenReturn(expectedResponse);
 
-        RestaurantResponse result = restaurantService.createRestaurant(request);
+        RestaurantResponse result = restaurantService.createRestaurant(request, OWNER_ID);
 
         assertSame(expectedResponse, result);
-        verify(restaurantMapper).toEntity(request);
+        verify(restaurantMapper).toEntity(request, OWNER_ID);
         verify(restaurantRepository).save(restaurantToSave);
         verify(restaurantMapper).toResponse(savedRestaurant);
     }
@@ -177,7 +183,7 @@ class RestaurantServiceTest {
                 .thenReturn(Optional.of(restaurant));
         when(restaurantMapper.toResponse(restaurant)).thenReturn(expectedResponse);
 
-        RestaurantResponse result = restaurantService.updateRestaurant(restaurantId, request);
+        RestaurantResponse result = restaurantService.updateRestaurant(restaurantId, request, ADMIN);
 
         assertSame(expectedResponse, result);
         verify(restaurantRepository).findById(restaurantId);
@@ -385,10 +391,66 @@ class RestaurantServiceTest {
 
         assertThrows(
                 RestaurantNotFoundException.class,
-                () -> restaurantService.updateRestaurant(restaurantId, request)
+                () -> restaurantService.updateRestaurant(restaurantId, request, ADMIN)
         );
 
         verify(restaurantRepository).findById(restaurantId);
         verifyNoInteractions(restaurantMapper);
+    }
+
+    @Test
+    void allowsOwnerToUpdateOwnRestaurant() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = ownedRestaurant(restaurantId, OWNER_ID);
+        UpdateRestaurantRequest request = renameRequest();
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+
+        restaurantService.updateRestaurant(restaurantId, request, OWNER);
+
+        verify(restaurantMapper).updateEntity(request, restaurant);
+    }
+
+    @Test
+    void rejectsUpdateOfRestaurantOwnedByAnotherUser() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = ownedRestaurant(restaurantId, OWNER_ID);
+        UpdateRestaurantRequest request = renameRequest();
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(
+                RestaurantAccessDeniedException.class,
+                () -> restaurantService.updateRestaurant(restaurantId, request, OTHER_OWNER)
+        );
+
+        verify(restaurantMapper, never()).updateEntity(request, restaurant);
+    }
+
+    @Test
+    void rejectsOwnerUpdateOfRestaurantWithoutOwner() {
+        UUID restaurantId = UUID.randomUUID();
+        Restaurant restaurant = ownedRestaurant(restaurantId, null);
+        UpdateRestaurantRequest request = renameRequest();
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(
+                RestaurantAccessDeniedException.class,
+                () -> restaurantService.updateRestaurant(restaurantId, request, OWNER)
+        );
+    }
+
+    private Restaurant ownedRestaurant(UUID restaurantId, UUID ownerId) {
+        return Restaurant.builder()
+                .id(restaurantId)
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .ownerId(ownerId)
+                .build();
+    }
+
+    private UpdateRestaurantRequest renameRequest() {
+        return new UpdateRestaurantRequest("New name", null, null, null, null, null, null, null, null);
     }
 }

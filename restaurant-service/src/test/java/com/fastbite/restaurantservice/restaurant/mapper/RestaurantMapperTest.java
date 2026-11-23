@@ -6,6 +6,7 @@ import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import org.junit.jupiter.api.Test;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class RestaurantMapperTest {
@@ -25,7 +26,7 @@ class RestaurantMapperTest {
                 "10552"
         );
 
-        Restaurant restaurant = restaurantMapper.toEntity(request);
+        Restaurant restaurant = restaurantMapper.toEntity(request, OWNER_ID);
         RestaurantResponse response = restaurantMapper.toResponse(restaurant);
 
         assertEquals("Athens Municipality", restaurant.getMunicipality());

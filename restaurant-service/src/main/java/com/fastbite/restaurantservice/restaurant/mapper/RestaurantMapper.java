@@ -6,10 +6,12 @@ import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class RestaurantMapper {
 
-    public Restaurant toEntity(CreateRestaurantRequest request) {
+    public Restaurant toEntity(CreateRestaurantRequest request, UUID ownerId) {
         return Restaurant.builder()
                 .name(request.name())
                 .address(request.address())
@@ -19,6 +21,7 @@ public class RestaurantMapper {
                 .municipality(request.municipality())
                 .region(request.region())
                 .postalCode(request.postalCode())
+                .ownerId(ownerId)
                 .build();
     }
 

@@ -6,11 +6,13 @@ import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageRespons
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.exception.RestaurantAccessDeniedException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.PublicRestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.mapper.RestaurantMapper;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import com.fastbite.restaurantservice.restaurant.repository.RestaurantRepository;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,8 +31,8 @@ public class RestaurantService {
     private final PublicRestaurantMapper publicRestaurantMapper;
 
     @Transactional
-    public RestaurantResponse createRestaurant(CreateRestaurantRequest request) {
-        Restaurant restaurant = restaurantMapper.toEntity(request);
+    public RestaurantResponse createRestaurant(CreateRestaurantRequest request, UUID ownerId) {
+        Restaurant restaurant = restaurantMapper.toEntity(request, ownerId);
         Restaurant savedRestaurant = restaurantRepository.save(restaurant);
 
         return restaurantMapper.toResponse(savedRestaurant);
@@ -59,10 +61,15 @@ public class RestaurantService {
     @Transactional
     public RestaurantResponse updateRestaurant(
             UUID restaurantId,
-            UpdateRestaurantRequest request
+            UpdateRestaurantRequest request,
+            CurrentUser currentUser
     ) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new RestaurantNotFoundException(restaurantId));
+
+        if (!currentUser.canManage(restaurant)) {
+            throw new RestaurantAccessDeniedException(restaurant.getId());
+        }
 
         restaurantMapper.updateEntity(request, restaurant);
 

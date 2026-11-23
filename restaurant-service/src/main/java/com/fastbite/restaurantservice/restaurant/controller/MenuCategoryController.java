@@ -3,6 +3,7 @@ package com.fastbite.restaurantservice.restaurant.controller;
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import com.fastbite.restaurantservice.restaurant.service.MenuCategoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -12,6 +13,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -46,11 +49,13 @@ public class MenuCategoryController {
     @PostMapping
     public ResponseEntity<MenuCategoryResponse> createMenuCategory(
             @PathVariable UUID restaurantId,
-            @Valid @RequestBody CreateMenuCategoryRequest request
+            @Valid @RequestBody CreateMenuCategoryRequest request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
         MenuCategoryResponse response = menuCategoryService.createMenuCategory(
                 restaurantId,
-                request
+                request,
+                CurrentUser.from(jwt)
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -69,12 +74,14 @@ public class MenuCategoryController {
     public ResponseEntity<MenuCategoryResponse> updateMenuCategory(
             @PathVariable UUID restaurantId,
             @PathVariable UUID categoryId,
-            @Valid @RequestBody UpdateMenuCategoryRequest request
+            @Valid @RequestBody UpdateMenuCategoryRequest request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
         MenuCategoryResponse response = menuCategoryService.updateMenuCategory(
                 restaurantId,
                 categoryId,
-                request
+                request,
+                CurrentUser.from(jwt)
         );
 
         return ResponseEntity.ok(response);
