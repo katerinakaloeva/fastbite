@@ -5,6 +5,7 @@ import com.fastbite.restaurantservice.restaurant.dto.MenuItemResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
 import com.fastbite.restaurantservice.restaurant.exception.MenuItemNotFoundException;
+import com.fastbite.restaurantservice.restaurant.exception.RestaurantAccessDeniedException;
 import com.fastbite.restaurantservice.restaurant.mapper.MenuItemMapper;
 import com.fastbite.restaurantservice.restaurant.model.MenuCategory;
 import com.fastbite.restaurantservice.restaurant.model.MenuItem;
@@ -22,6 +23,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.ADMIN;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OTHER_OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -70,7 +74,7 @@ class MenuItemServiceTest {
         when(menuItemRepository.save(menuItemToSave)).thenReturn(savedMenuItem);
         when(menuItemMapper.toResponse(savedMenuItem)).thenReturn(expectedResponse);
 
-        MenuItemResponse result = menuItemService.createMenuItem(categoryId, request);
+        MenuItemResponse result = menuItemService.createMenuItem(categoryId, request, ADMIN);
 
         assertSame(expectedResponse, result);
         verify(menuCategoryRepository).findById(categoryId);
@@ -134,7 +138,7 @@ class MenuItemServiceTest {
         MenuItemResponse result = menuItemService.updateMenuItem(
                 categoryId,
                 menuItem.getId(),
-                request
+                request, ADMIN
         );
 
         assertSame(expectedResponse, result);
@@ -168,7 +172,7 @@ class MenuItemServiceTest {
 
         assertThrows(
                 MenuCategoryNotFoundException.class,
-                () -> menuItemService.updateMenuItem(categoryId, UUID.randomUUID(), request)
+                () -> menuItemService.updateMenuItem(categoryId, UUID.randomUUID(), request, ADMIN)
         );
 
         verify(menuCategoryRepository).findById(categoryId);
@@ -187,7 +191,7 @@ class MenuItemServiceTest {
 
         assertThrows(
                 MenuItemNotFoundException.class,
-                () -> menuItemService.updateMenuItem(categoryId, itemId, request)
+                () -> menuItemService.updateMenuItem(categoryId, itemId, request, ADMIN)
         );
 
         verify(menuCategoryRepository).findById(categoryId);
@@ -208,7 +212,7 @@ class MenuItemServiceTest {
 
         assertThrows(
                 MenuItemNotFoundException.class,
-                () -> menuItemService.updateMenuItem(categoryId, menuItem.getId(), request)
+                () -> menuItemService.updateMenuItem(categoryId, menuItem.getId(), request, ADMIN)
         );
 
         verify(menuCategoryRepository).findById(categoryId);
@@ -253,5 +257,37 @@ class MenuItemServiceTest {
                 null,
                 null
         );
+    }
+
+    @Test
+    void rejectsMenuItemCreationInRestaurantOwnedByAnotherUser() {
+        UUID categoryId = UUID.randomUUID();
+        Restaurant restaurant = Restaurant.builder()
+                .id(UUID.randomUUID())
+                .name("FastBite Athens")
+                .address("Athens, Greece")
+                .ownerId(OWNER_ID)
+                .build();
+        MenuCategory category = MenuCategory.builder()
+                .id(categoryId)
+                .restaurant(restaurant)
+                .name("Burgers")
+                .displayOrder(0)
+                .build();
+        CreateMenuItemRequest request = new CreateMenuItemRequest(
+                "Cheeseburger",
+                null,
+                new BigDecimal("8.50"),
+                "EUR"
+        );
+
+        when(menuCategoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+
+        assertThrows(
+                RestaurantAccessDeniedException.class,
+                () -> menuItemService.createMenuItem(categoryId, request, OTHER_OWNER)
+        );
+
+        verifyNoInteractions(menuItemRepository, menuItemMapper);
     }
 }

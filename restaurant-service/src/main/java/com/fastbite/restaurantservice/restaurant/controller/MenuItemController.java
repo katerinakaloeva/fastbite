@@ -3,6 +3,7 @@ package com.fastbite.restaurantservice.restaurant.controller;
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuItemResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuItemRequest;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import com.fastbite.restaurantservice.restaurant.service.MenuItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -12,6 +13,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -46,9 +49,10 @@ public class MenuItemController {
     @PostMapping
     public ResponseEntity<MenuItemResponse> createMenuItem(
             @PathVariable UUID categoryId,
-            @Valid @RequestBody CreateMenuItemRequest request
+            @Valid @RequestBody CreateMenuItemRequest request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
-        MenuItemResponse response = menuItemService.createMenuItem(categoryId, request);
+        MenuItemResponse response = menuItemService.createMenuItem(categoryId, request, CurrentUser.from(jwt));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -66,9 +70,10 @@ public class MenuItemController {
     public ResponseEntity<MenuItemResponse> updateMenuItem(
             @PathVariable UUID categoryId,
             @PathVariable UUID itemId,
-            @Valid @RequestBody UpdateMenuItemRequest request
+            @Valid @RequestBody UpdateMenuItemRequest request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
-        MenuItemResponse response = menuItemService.updateMenuItem(categoryId, itemId, request);
+        MenuItemResponse response = menuItemService.updateMenuItem(categoryId, itemId, request, CurrentUser.from(jwt));
 
         return ResponseEntity.ok(response);
     }

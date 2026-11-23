@@ -1,15 +1,19 @@
 package com.fastbite.restaurantservice.restaurant.controller;
 
+import com.fastbite.restaurantservice.config.SecurityConfig;
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuItemResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuItemRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
 import com.fastbite.restaurantservice.restaurant.exception.MenuItemNotFoundException;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import com.fastbite.restaurantservice.restaurant.service.MenuItemService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -17,6 +21,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.owner;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -29,10 +35,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MenuItemController.class)
+@Import(SecurityConfig.class)
 class MenuItemControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private MenuItemService menuItemService;
@@ -50,10 +60,11 @@ class MenuItemControllerTest {
 
         when(menuItemService.createMenuItem(
                 eq(categoryId),
-                any(CreateMenuItemRequest.class)
+                any(CreateMenuItemRequest.class), any(CurrentUser.class)
         )).thenReturn(response);
 
         mockMvc.perform(post("/menu-categories/{categoryId}/menu-items", categoryId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -77,7 +88,7 @@ class MenuItemControllerTest {
                         "Beef burger with cheese",
                         new BigDecimal("8.50"),
                         "EUR"
-                )
+                ), OWNER
         );
     }
 
@@ -107,10 +118,11 @@ class MenuItemControllerTest {
         when(menuItemService.updateMenuItem(
                 eq(categoryId),
                 eq(itemId),
-                any(UpdateMenuItemRequest.class)
+                any(UpdateMenuItemRequest.class), any(CurrentUser.class)
         )).thenReturn(response);
 
         mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}", categoryId, itemId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -123,7 +135,7 @@ class MenuItemControllerTest {
                 .andExpect(jsonPath("$.name").value("Double Cheeseburger"))
                 .andExpect(jsonPath("$.available").value(false));
 
-        verify(menuItemService).updateMenuItem(categoryId, itemId, request);
+        verify(menuItemService).updateMenuItem(categoryId, itemId, request, OWNER);
     }
 
     @Test
@@ -160,6 +172,7 @@ class MenuItemControllerTest {
         UUID categoryId = UUID.randomUUID();
 
         mockMvc.perform(post("/menu-categories/{categoryId}/menu-items", categoryId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -184,6 +197,7 @@ class MenuItemControllerTest {
         UUID itemId = UUID.randomUUID();
 
         mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}", categoryId, itemId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -208,6 +222,7 @@ class MenuItemControllerTest {
                         categoryId,
                         itemId
                 )
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -250,10 +265,11 @@ class MenuItemControllerTest {
         when(menuItemService.updateMenuItem(
                 eq(categoryId),
                 eq(itemId),
-                any(UpdateMenuItemRequest.class)
+                any(UpdateMenuItemRequest.class), any(CurrentUser.class)
         )).thenThrow(new MenuItemNotFoundException(itemId));
 
         mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}", categoryId, itemId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -263,7 +279,7 @@ class MenuItemControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MENU_ITEM_NOT_FOUND"));
 
-        verify(menuItemService).updateMenuItem(categoryId, itemId, request);
+        verify(menuItemService).updateMenuItem(categoryId, itemId, request, OWNER);
     }
 
     private MenuItemResponse menuItemResponse(
@@ -289,6 +305,7 @@ class MenuItemControllerTest {
     void rejectsCreatePricesThatDoNotFitDatabasePrecision() throws Exception {
         for (String price : List.of("8.555", "100000000.00")) {
             mockMvc.perform(post("/menu-categories/{categoryId}/menu-items", UUID.randomUUID())
+                        .with(owner())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"name": "Burger", "price": %s, "currency": "EUR"}
@@ -305,6 +322,7 @@ class MenuItemControllerTest {
         for (String price : List.of("8.555", "100000000.00")) {
             mockMvc.perform(patch("/menu-categories/{categoryId}/menu-items/{itemId}",
                             UUID.randomUUID(), UUID.randomUUID())
+                        .with(owner())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"price": %s}

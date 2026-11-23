@@ -1,5 +1,6 @@
 package com.fastbite.restaurantservice.restaurant.controller;
 
+import com.fastbite.restaurantservice.config.SecurityConfig;
 import com.fastbite.restaurantservice.restaurant.dto.CreateRestaurantRequest;
 import com.fastbite.restaurantservice.restaurant.dto.PublicMenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicMenuItemResponse;
@@ -8,14 +9,18 @@ import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageRespons
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantSummaryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.exception.RestaurantAccessDeniedException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import com.fastbite.restaurantservice.restaurant.service.PublicMenuService;
 import com.fastbite.restaurantservice.restaurant.service.RestaurantService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,6 +28,12 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.ADMIN_ID;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER_ID;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.admin;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.customer;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.owner;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -35,10 +46,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(RestaurantController.class)
+@Import(SecurityConfig.class)
 class RestaurantControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    private static final String VALID_CREATE_REQUEST = """
+            {
+              "name": "FastBite Athens",
+              "address": "Athens, Greece",
+              "municipality": "Athens",
+              "region": "Attica"
+            }
+            """;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private RestaurantService restaurantService;
@@ -55,10 +79,11 @@ class RestaurantControllerTest {
                 "Athens, Greece"
         );
 
-        when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class)))
+        when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), eq(OWNER_ID)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/restaurants")
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -86,7 +111,7 @@ class RestaurantControllerTest {
                 "Athens Municipality",
                 "Attica",
                 "10552"
-        ));
+        ), OWNER_ID);
     }
 
     @Test
@@ -118,10 +143,11 @@ class RestaurantControllerTest {
                 null
         );
 
-        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class)))
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), any(CurrentUser.class)))
                 .thenReturn(response);
 
         mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -138,7 +164,7 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.municipality").value("Piraeus Municipality"))
                 .andExpect(jsonPath("$.region").value("Attica"));
 
-        verify(restaurantService).updateRestaurant(restaurantId, request);
+        verify(restaurantService).updateRestaurant(restaurantId, request, OWNER);
     }
 
     @Test
@@ -319,6 +345,7 @@ class RestaurantControllerTest {
     @Test
     void returnsValidationErrorWhenRequestIsInvalid() throws Exception {
         mockMvc.perform(post("/restaurants")
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -344,6 +371,7 @@ class RestaurantControllerTest {
         UUID restaurantId = UUID.randomUUID();
 
         mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -362,6 +390,7 @@ class RestaurantControllerTest {
         UUID restaurantId = UUID.randomUUID();
 
         mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -391,6 +420,7 @@ class RestaurantControllerTest {
     @Test
     void returnsBadRequestWhenJsonBodyIsMalformed() throws Exception {
         mockMvc.perform(post("/restaurants")
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ invalid json"))
                 .andExpect(status().isBadRequest())
@@ -403,6 +433,7 @@ class RestaurantControllerTest {
     @Test
     void returnsBadRequestWhenRequestBodyIsMissing() throws Exception {
         mockMvc.perform(post("/restaurants")
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
@@ -442,10 +473,11 @@ class RestaurantControllerTest {
                 null
         );
 
-        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class)))
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), any(CurrentUser.class)))
                 .thenThrow(new RestaurantNotFoundException(restaurantId));
 
         mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -457,7 +489,7 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.message")
                         .value("Restaurant with id " + restaurantId + " was not found"));
 
-        verify(restaurantService).updateRestaurant(restaurantId, request);
+        verify(restaurantService).updateRestaurant(restaurantId, request, OWNER);
     }
 
     private RestaurantResponse restaurantResponse(UUID id, String name, String address) {
@@ -473,5 +505,71 @@ class RestaurantControllerTest {
                 null,
                 null
         );
+    }
+
+    @Test
+    void rejectsRestaurantCreationWithoutToken() throws Exception {
+        mockMvc.perform(post("/restaurants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_CREATE_REQUEST))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
+    void rejectsRestaurantCreationForCustomer() throws Exception {
+        mockMvc.perform(post("/restaurants")
+                        .with(customer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_CREATE_REQUEST))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(restaurantService);
+    }
+
+    @Test
+    void allowsAdminToCreateRestaurant() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        when(restaurantService.createRestaurant(any(CreateRestaurantRequest.class), eq(ADMIN_ID)))
+                .thenReturn(restaurantResponse(restaurantId, "FastBite Athens", "Athens, Greece"));
+
+        mockMvc.perform(post("/restaurants")
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_CREATE_REQUEST))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void returnsForbiddenWhenUpdatingAnotherOwnersRestaurant() throws Exception {
+        UUID restaurantId = UUID.randomUUID();
+        when(restaurantService.updateRestaurant(eq(restaurantId), any(UpdateRestaurantRequest.class), any(CurrentUser.class)))
+                .thenThrow(new RestaurantAccessDeniedException(restaurantId));
+
+        mockMvc.perform(patch("/restaurants/{restaurantId}", restaurantId)
+                        .with(owner())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "New name"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("RESTAURANT_ACCESS_DENIED"));
+    }
+
+    @Test
+    void rejectsRestaurantUpdateWithoutToken() throws Exception {
+        mockMvc.perform(patch("/restaurants/{restaurantId}", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "New name"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(restaurantService);
     }
 }

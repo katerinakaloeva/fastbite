@@ -1,21 +1,27 @@
 package com.fastbite.restaurantservice.restaurant.controller;
 
+import com.fastbite.restaurantservice.config.SecurityConfig;
 import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import com.fastbite.restaurantservice.restaurant.service.MenuCategoryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.UUID;
 
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.OWNER;
+import static com.fastbite.restaurantservice.restaurant.security.TestUsers.owner;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -28,10 +34,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MenuCategoryController.class)
+@Import(SecurityConfig.class)
 class MenuCategoryControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private MenuCategoryService menuCategoryService;
@@ -44,10 +54,11 @@ class MenuCategoryControllerTest {
 
         when(menuCategoryService.createMenuCategory(
                 eq(restaurantId),
-                any(CreateMenuCategoryRequest.class)
+                any(CreateMenuCategoryRequest.class), any(CurrentUser.class)
         )).thenReturn(response);
 
         mockMvc.perform(post("/restaurants/{restaurantId}/menu-categories", restaurantId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -63,7 +74,7 @@ class MenuCategoryControllerTest {
 
         verify(menuCategoryService).createMenuCategory(
                 restaurantId,
-                new CreateMenuCategoryRequest("Burgers", 0)
+                new CreateMenuCategoryRequest("Burgers", 0), OWNER
         );
     }
 
@@ -89,7 +100,7 @@ class MenuCategoryControllerTest {
         when(menuCategoryService.updateMenuCategory(
                 eq(restaurantId),
                 eq(categoryId),
-                any(UpdateMenuCategoryRequest.class)
+                any(UpdateMenuCategoryRequest.class), any(CurrentUser.class)
         )).thenReturn(response);
 
         mockMvc.perform(patch(
@@ -97,6 +108,7 @@ class MenuCategoryControllerTest {
                         restaurantId,
                         categoryId
                 )
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -111,7 +123,7 @@ class MenuCategoryControllerTest {
                 .andExpect(jsonPath("$.displayOrder").value(2))
                 .andExpect(jsonPath("$.active").value(false));
 
-        verify(menuCategoryService).updateMenuCategory(restaurantId, categoryId, request);
+        verify(menuCategoryService).updateMenuCategory(restaurantId, categoryId, request, OWNER);
     }
 
     @Test
@@ -148,6 +160,7 @@ class MenuCategoryControllerTest {
         UUID restaurantId = UUID.randomUUID();
 
         mockMvc.perform(post("/restaurants/{restaurantId}/menu-categories", restaurantId)
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -174,6 +187,7 @@ class MenuCategoryControllerTest {
                         restaurantId,
                         categoryId
                 )
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -197,6 +211,7 @@ class MenuCategoryControllerTest {
                         restaurantId,
                         categoryId
                 )
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -237,7 +252,7 @@ class MenuCategoryControllerTest {
         when(menuCategoryService.updateMenuCategory(
                 eq(restaurantId),
                 eq(categoryId),
-                any(UpdateMenuCategoryRequest.class)
+                any(UpdateMenuCategoryRequest.class), any(CurrentUser.class)
         )).thenThrow(new MenuCategoryNotFoundException(categoryId));
 
         mockMvc.perform(patch(
@@ -245,6 +260,7 @@ class MenuCategoryControllerTest {
                         restaurantId,
                         categoryId
                 )
+                        .with(owner())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -254,7 +270,7 @@ class MenuCategoryControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("MENU_CATEGORY_NOT_FOUND"));
 
-        verify(menuCategoryService).updateMenuCategory(restaurantId, categoryId, request);
+        verify(menuCategoryService).updateMenuCategory(restaurantId, categoryId, request, OWNER);
     }
 
     private MenuCategoryResponse categoryResponse(

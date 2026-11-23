@@ -4,12 +4,14 @@ import com.fastbite.restaurantservice.restaurant.dto.CreateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.dto.MenuCategoryResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateMenuCategoryRequest;
 import com.fastbite.restaurantservice.restaurant.exception.MenuCategoryNotFoundException;
+import com.fastbite.restaurantservice.restaurant.exception.RestaurantAccessDeniedException;
 import com.fastbite.restaurantservice.restaurant.exception.RestaurantNotFoundException;
 import com.fastbite.restaurantservice.restaurant.mapper.MenuCategoryMapper;
 import com.fastbite.restaurantservice.restaurant.model.MenuCategory;
 import com.fastbite.restaurantservice.restaurant.model.Restaurant;
 import com.fastbite.restaurantservice.restaurant.repository.MenuCategoryRepository;
 import com.fastbite.restaurantservice.restaurant.repository.RestaurantRepository;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,9 +30,11 @@ public class MenuCategoryService {
     @Transactional
     public MenuCategoryResponse createMenuCategory(
             UUID restaurantId,
-            CreateMenuCategoryRequest request
+            CreateMenuCategoryRequest request,
+            CurrentUser currentUser
     ) {
         Restaurant restaurant = findRestaurantById(restaurantId);
+        checkCanManage(restaurant, currentUser);
 
         MenuCategory menuCategory = menuCategoryMapper.toEntity(request, restaurant);
         MenuCategory savedMenuCategory = menuCategoryRepository.save(menuCategory);
@@ -52,9 +56,11 @@ public class MenuCategoryService {
     public MenuCategoryResponse updateMenuCategory(
             UUID restaurantId,
             UUID categoryId,
-            UpdateMenuCategoryRequest request
+            UpdateMenuCategoryRequest request,
+            CurrentUser currentUser
     ) {
         Restaurant restaurant = findRestaurantById(restaurantId);
+        checkCanManage(restaurant, currentUser);
         MenuCategory menuCategory = findMenuCategoryByIdAndRestaurantId(
                 categoryId,
                 restaurant.getId()
@@ -63,6 +69,12 @@ public class MenuCategoryService {
         menuCategoryMapper.updateEntity(request, menuCategory);
 
         return menuCategoryMapper.toResponse(menuCategory);
+    }
+
+    private void checkCanManage(Restaurant restaurant, CurrentUser currentUser) {
+        if (!currentUser.canManage(restaurant)) {
+            throw new RestaurantAccessDeniedException(restaurant.getId());
+        }
     }
 
     private Restaurant findRestaurantById(UUID restaurantId) {

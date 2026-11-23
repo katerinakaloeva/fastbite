@@ -5,6 +5,7 @@ import com.fastbite.restaurantservice.restaurant.dto.PublicMenuResponse;
 import com.fastbite.restaurantservice.restaurant.dto.PublicRestaurantPageResponse;
 import com.fastbite.restaurantservice.restaurant.dto.RestaurantResponse;
 import com.fastbite.restaurantservice.restaurant.dto.UpdateRestaurantRequest;
+import com.fastbite.restaurantservice.restaurant.security.CurrentUser;
 import com.fastbite.restaurantservice.restaurant.service.PublicMenuService;
 import com.fastbite.restaurantservice.restaurant.service.RestaurantService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +20,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -53,9 +56,11 @@ public class RestaurantController {
     })
     @PostMapping
     public ResponseEntity<RestaurantResponse> createRestaurant(
-            @Valid @RequestBody CreateRestaurantRequest request
+            @Valid @RequestBody CreateRestaurantRequest request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
-        RestaurantResponse response = restaurantService.createRestaurant(request);
+        UUID ownerId = UUID.fromString(jwt.getSubject());
+        RestaurantResponse response = restaurantService.createRestaurant(request, ownerId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -72,11 +77,13 @@ public class RestaurantController {
     @PatchMapping("/{restaurantId}")
     public ResponseEntity<RestaurantResponse> updateRestaurant(
             @PathVariable UUID restaurantId,
-            @Valid @RequestBody UpdateRestaurantRequest request
+            @Valid @RequestBody UpdateRestaurantRequest request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
         RestaurantResponse response = restaurantService.updateRestaurant(
                 restaurantId,
-                request
+                request,
+                CurrentUser.from(jwt)
         );
 
         return ResponseEntity.ok(response);
